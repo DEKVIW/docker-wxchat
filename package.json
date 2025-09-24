@@ -1,0 +1,29 @@
+{
+  "name": "wxchat",
+  "version": "1.0.0",
+  "description": "微信文件传输助手Web应用 - 模块化设计",
+  "main": "worker/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "build": "node build.js",
+    "db:init": "wrangler d1 execute wxchat --file=./database/schema.sql"
+  },
+  "dependencies": {
+    "@cloudflare/kv-asset-handler": "^0.3.0",
+    "hono": "^3.12.0",
+    "swiper": "^11.2.10"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  },
+  "keywords": [
+    "cloudflare-workers",
+    "hono",
+    "file-transfer",
+    "modular-design",
+    "static-files"
+  ],
+  "author": "xiyewuqiu <xiyewuqiu@gmail.com>",
+  "license": "MIT"
+}

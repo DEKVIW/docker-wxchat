@@ -1,0 +1,26 @@
+# 排除根目录的node_modules
+../node_modules/
+
+# 排除Cloudflare Workers相关文件
+../worker/
+../.wrangler/
+../wrangler.toml
+../build.js
+../package.json
+../package-lock.json
+
+# 排除开发文件
+../.git/
+../.gitignore
+../README.md
+../LICENSE
+
+# 排除其他不需要的文件
+../*.md
+../.env*
+../.DS_Store
+../Thumbs.db
+
+# 排除构建产物
+../dist/
+../build/

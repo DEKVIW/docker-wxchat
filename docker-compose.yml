@@ -1,0 +1,20 @@
+version: "3.8"
+
+services:
+  wxchat:
+    image: yilan666/wxchat:latest
+    container_name: wxchat
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+    env_file:
+      - .env.docker
+    networks:
+      - wxchat-network
+
+networks:
+  wxchat-network:
+    driver: bridge

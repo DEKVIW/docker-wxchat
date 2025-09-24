@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- 背景圆形 -->
+  <circle cx="256" cy="256" r="256" fill="#07c160"/>
+  
+  <!-- 聊天气泡1 -->
+  <path d="M150 180 Q130 180 130 200 L130 260 Q130 280 150 280 L220 280 L240 300 L240 280 L250 280 Q270 280 270 260 L270 200 Q270 180 250 180 Z" fill="white" opacity="0.9"/>
+  
+  <!-- 聊天气泡2 -->
+  <path d="M280 220 Q280 200 300 200 L370 200 Q390 200 390 220 L390 280 Q390 300 370 300 L340 300 L320 320 L320 300 L300 300 Q280 300 280 280 Z" fill="white" opacity="0.8"/>
+  
+  <!-- 文件图标 -->
+  <rect x="200" y="320" width="80" height="100" rx="8" fill="white" opacity="0.9"/>
+  <rect x="210" y="330" width="60" height="4" fill="#07c160"/>
+  <rect x="210" y="340" width="45" height="3" fill="#07c160" opacity="0.7"/>
+  <rect x="210" y="350" width="50" height="3" fill="#07c160" opacity="0.7"/>
+  <rect x="210" y="360" width="35" height="3" fill="#07c160" opacity="0.7"/>
+  
+  <!-- 传输箭头 -->
+  <path d="M300 380 L330 380 L325 375 M330 380 L325 385" stroke="white" stroke-width="4" fill="none" stroke-linecap="round"/>
+  
+  <!-- 装饰点 -->
+  <circle cx="180" cy="150" r="8" fill="white" opacity="0.6"/>
+  <circle cx="350" cy="160" r="6" fill="white" opacity="0.5"/>
+  <circle cx="160" cy="350" r="5" fill="white" opacity="0.4"/>
+  <circle cx="380" cy="380" r="7" fill="white" opacity="0.5"/>
+</svg>
