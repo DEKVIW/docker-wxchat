@@ -19,8 +19,8 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/your-username/wxchat.git
-cd wxchat
+git clone https://github.com/DEKVIW/docker-wxchat.git
+cd docker-wxchat
 
 # 进入 Docker 目录
 cd docker
