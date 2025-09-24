@@ -4,11 +4,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Cloudflare Workers
-.wrangler/
-dist/
-.cloudflare/
-
 # Environment variables and secrets
 .env
 .env.local
