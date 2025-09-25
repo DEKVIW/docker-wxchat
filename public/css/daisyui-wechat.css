@@ -209,8 +209,8 @@
 }
 
 .chat-bubble .text-message + .copy-btn {
-  top: 2px;
-  right: 2px;
+  top: -1px;
+  right: -1px;
 }
 
 .chat-bubble .text-message + .delete-btn {
