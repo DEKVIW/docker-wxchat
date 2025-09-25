@@ -1062,6 +1062,12 @@
   transition: all 0.3s ease;
 }
 
+.connection-status:empty {
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
 .connection-status.online {
   background: rgba(16, 185, 129, 0.1);
   color: #10b981;

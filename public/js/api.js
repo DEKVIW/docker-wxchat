@@ -276,6 +276,10 @@ const API = {
       // 获取文件blob
       const blob = await response.blob();
 
+      // 临时禁用网络状态检测，避免下载时误判为离线
+      const originalSetConnectionStatus = UI.setConnectionStatus;
+      UI.setConnectionStatus = () => {}; // 临时禁用
+
       // 创建下载链接
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -290,9 +294,17 @@ const API = {
       // 清理URL对象
       window.URL.revokeObjectURL(downloadUrl);
 
+      // 恢复网络状态检测
+      UI.setConnectionStatus = originalSetConnectionStatus;
+
       return true;
     } catch (error) {
       console.error("文件下载失败:", error);
+
+      // 恢复网络状态检测
+      if (typeof originalSetConnectionStatus !== "undefined") {
+        UI.setConnectionStatus = originalSetConnectionStatus;
+      }
 
       // 下载失败通知已禁用，避免移动端弹窗遮挡输入框
       if (error.message.includes("401")) {
