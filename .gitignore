@@ -104,4 +104,7 @@ build/
 dist/
 
 # Local development files
-*.local 
+*.local
+
+# Icon conversion scripts
+svg-to-icons-converter.js 
