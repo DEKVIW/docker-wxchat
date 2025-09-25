@@ -196,7 +196,7 @@ const UI = {
     const deviceName = isOwn ? "我的设备" : "其他设备";
 
     const messageDiv = document.createElement("div");
-    messageDiv.className = `message ${isOwn ? "own" : "other"}`;
+    messageDiv.className = `chat ${isOwn ? "chat-end" : "chat-start"} fade-in`;
     messageDiv.dataset.messageId = message.id;
     messageDiv.dataset.timestamp = message.timestamp;
 
@@ -291,8 +291,8 @@ const UI = {
     // 删除按钮，放在左下角
     const deleteButton = `<button class=\"delete-btn\" onclick=\"UI.deleteMessage('${message.id}')\" title=\"删除消息\">🗑️</button>`;
 
-    // 结构优化：内容和按钮平级，按钮贴在气泡右上角和右下角
-    return `<div class="message-content">
+    // 使用DaisyUI的chat-bubble结构
+    return `<div class="chat-bubble">
         <div class="${textMessageClass}" id="${messageId}" data-original="${this.escapeHtml(
       message.content
     )}" data-rendered="${displayContent.replace(
@@ -303,7 +303,8 @@ const UI = {
         </div>
         ${copyButton}
         ${deleteButton}
-    </div><div class="message-meta"><span>${deviceName}</span><span class="message-time">${time}</span></div>`;
+    </div>
+    <div class="chat-time"><span>${deviceName}</span><span class="message-time">${time}</span></div>`;
   },
 
   // 新增复制逻辑
@@ -404,7 +405,7 @@ const UI = {
       message._needsImageLoad = { r2Key: message.r2_key, safeId: safeId };
     }
 
-    return `<div class="message-content"><div class="file-message"><div class="file-info"><div class="file-icon">${fileIcon}</div><div class="file-details"><div class="file-name">${this.escapeHtml(
+    return `<div class="chat-bubble"><div class="file-message"><div class="file-info"><div class="file-icon">${fileIcon}</div><div class="file-details"><div class="file-name">${this.escapeHtml(
       message.original_name
     )}</div><div class="file-size">${fileSize}</div></div></div><div class="file-actions"><button class="download-btn" onclick="API.downloadFile('${
       message.r2_key
@@ -412,7 +413,8 @@ const UI = {
       message.original_name
     )}')">⬇️ 下载</button><button class="delete-btn" onclick="UI.deleteMessage('${
       message.id
-    }')" title="删除消息">🗑️ 删除</button></div>${imagePreview}</div></div><div class="message-meta"><span>${deviceName}</span><span class="message-time">${time}</span></div>`;
+    }')" title="删除消息">🗑️ 删除</button></div>${imagePreview}</div></div>
+    <div class="chat-time"><span>${deviceName}</span><span class="message-time">${time}</span></div>`;
   },
 
   // 渲染文件消息（保留用于兼容性）
