@@ -293,8 +293,9 @@ const UI = {
 
     // 使用DaisyUI的chat-bubble结构
     return `<div class="chat-bubble">
-        <div class="${textMessageClass}" id="${messageId}" data-original="${this.escapeHtml(
-      message.content
+        <div class="${textMessageClass}" id="${messageId}" data-original="${message.content.replace(
+      /"/g,
+      "&quot;"
     )}" data-rendered="${displayContent.replace(
       /"/g,
       "&quot;"
@@ -311,13 +312,24 @@ const UI = {
   copyMessageContent(messageId) {
     const el = document.getElementById(messageId);
     if (!el) return;
-    // 克隆节点，移除 markdown 按钮，只复制内容
-    const clone = el.cloneNode(true);
-    const btn = clone.querySelector(".markdown-toggle");
-    if (btn) btn.remove();
-    const text = clone.textContent.trim();
+
+    // 获取当前显示的内容（考虑markdown切换状态）
+    let contentToCopy;
+    const isRendered = el.dataset.isRendered === "true";
+
+    if (isRendered) {
+      // 当前显示渲染内容，复制原始markdown源码
+      contentToCopy = el.dataset.original;
+    } else {
+      // 当前显示源码，直接复制当前显示的文本内容
+      const clone = el.cloneNode(true);
+      const btn = clone.querySelector(".markdown-toggle");
+      if (btn) btn.remove();
+      contentToCopy = clone.textContent.trim();
+    }
+
     if (navigator.clipboard) {
-      navigator.clipboard.writeText(text).then(
+      navigator.clipboard.writeText(contentToCopy).then(
         () => {
           UI.showSuccess("复制成功");
         },
@@ -328,7 +340,7 @@ const UI = {
     } else {
       // 兼容旧浏览器
       const textarea = document.createElement("textarea");
-      textarea.value = text;
+      textarea.value = contentToCopy;
       document.body.appendChild(textarea);
       textarea.select();
       try {
@@ -926,22 +938,31 @@ const UI = {
 
     const isCurrentlyRendered = messageElement.dataset.isRendered === "true";
     const originalContent = messageElement.dataset.original;
-    const renderedContent = messageElement.dataset.rendered.replace(
-      /&quot;/g,
-      '"'
-    );
+
+    // 正确解码HTML实体
+    const renderedContent = messageElement.dataset.rendered
+      .replace(/&quot;/g, '"')
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&");
 
     // 清除现有内容
     messageElement.innerHTML = "";
 
     if (isCurrentlyRendered) {
-      // 切换到源码视图
-      const textNode = document.createTextNode(originalContent);
+      // 切换到源码视图 - 显示原始markdown源码
+      // 解码HTML实体以显示原始内容
+      const decodedOriginal = originalContent
+        .replace(/&quot;/g, '"')
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&amp;/g, "&");
+      const textNode = document.createTextNode(decodedOriginal);
       messageElement.appendChild(textNode);
       messageElement.className = "text-message";
       messageElement.dataset.isRendered = "false";
     } else {
-      // 切换到渲染视图
+      // 切换到渲染视图 - 显示渲染后的HTML
       messageElement.innerHTML = renderedContent;
       messageElement.className = "text-message markdown-rendered";
       messageElement.dataset.isRendered = "true";

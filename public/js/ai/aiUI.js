@@ -291,9 +291,13 @@ const AIUI = {
     const originalContent = messageElement.dataset.original;
     const renderedContent = messageElement.dataset.rendered;
 
+    // 清除现有内容
+    messageElement.innerHTML = "";
+
     if (isRendered) {
       // 切换到源码视图
-      messageElement.innerHTML = this.escapeHtml(originalContent);
+      const textNode = document.createTextNode(originalContent);
+      messageElement.appendChild(textNode);
       messageElement.classList.remove("markdown-rendered");
       messageElement.dataset.isRendered = "false";
     } else {
@@ -304,8 +308,12 @@ const AIUI = {
     }
 
     // 重新添加切换按钮
-    const toggleButton = `<button class="markdown-toggle" onclick="AIUI.toggleMarkdownView('${messageId}')" title="切换源码/渲染视图">📝</button>`;
-    messageElement.innerHTML += toggleButton;
+    const toggleButton = document.createElement("button");
+    toggleButton.className = "markdown-toggle";
+    toggleButton.onclick = () => this.toggleMarkdownView(messageId);
+    toggleButton.title = "切换源码/渲染视图";
+    toggleButton.textContent = "📝";
+    messageElement.appendChild(toggleButton);
   },
 
   // 更新AI模式指示器
@@ -372,23 +380,37 @@ const AIUI = {
       return;
     }
 
-    const originalContent = messageElement.dataset.original;
-    if (originalContent) {
+    // 获取当前显示的内容（考虑markdown切换状态）
+    let contentToCopy;
+    const isRendered = messageElement.dataset.isRendered === "true";
+
+    if (isRendered) {
+      // 当前显示渲染内容，复制原始markdown源码
+      contentToCopy = messageElement.dataset.original;
+    } else {
+      // 当前显示源码，直接复制当前显示的文本内容
+      const clone = messageElement.cloneNode(true);
+      const toggleButton = clone.querySelector(".markdown-toggle");
+      if (toggleButton) toggleButton.remove();
+      contentToCopy = clone.textContent.trim();
+    }
+
+    if (contentToCopy) {
       // 检查是否支持现代剪贴板API
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard
-          .writeText(originalContent)
+          .writeText(contentToCopy)
           .then(() => {
             // console.log("AIUI: 消息已复制到剪贴板");
             this.showCopySuccess();
           })
           .catch((err) => {
             console.error("AIUI: 现代剪贴板API失败，使用降级方法", err);
-            this.fallbackCopy(originalContent);
+            this.fallbackCopy(contentToCopy);
           });
       } else {
         // console.log("AIUI: 不支持现代剪贴板API，使用降级方法");
-        this.fallbackCopy(originalContent);
+        this.fallbackCopy(contentToCopy);
       }
     }
   },
