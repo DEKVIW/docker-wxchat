@@ -297,6 +297,20 @@ const API = {
       // 恢复网络状态检测
       UI.setConnectionStatus = originalSetConnectionStatus;
 
+      // PWA环境下的网络状态恢复处理
+      const isPWA =
+        window.matchMedia("(display-mode: standalone)").matches ||
+        window.navigator.standalone === true;
+
+      if (isPWA) {
+        // PWA环境：延迟恢复网络状态检测
+        setTimeout(() => {
+          if (navigator.onLine) {
+            UI.setConnectionStatus("connected");
+          }
+        }, 3000);
+      }
+
       return true;
     } catch (error) {
       console.error("文件下载失败:", error);
@@ -304,6 +318,20 @@ const API = {
       // 恢复网络状态检测
       if (typeof originalSetConnectionStatus !== "undefined") {
         UI.setConnectionStatus = originalSetConnectionStatus;
+
+        // PWA环境下的网络状态恢复处理
+        const isPWA =
+          window.matchMedia("(display-mode: standalone)").matches ||
+          window.navigator.standalone === true;
+
+        if (isPWA) {
+          // PWA环境：延迟恢复网络状态检测
+          setTimeout(() => {
+            if (navigator.onLine) {
+              UI.setConnectionStatus("connected");
+            }
+          }, 3000);
+        }
       }
 
       // 下载失败通知已禁用，避免移动端弹窗遮挡输入框
