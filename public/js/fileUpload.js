@@ -463,6 +463,14 @@ const FileUpload = {
       window.matchMedia("(display-mode: standalone)").matches ||
       window.navigator.standalone === true;
 
+    // HTTPS环境下的特殊处理
+    const isHTTPS = window.location.protocol === "https:";
+    if (isHTTPS && progressElement) {
+      // 强制显示进度条
+      progressElement.style.display = "block";
+      progressElement.style.visibility = "visible";
+    }
+
     // 显示进度条
     if (progressElement) {
       progressElement.classList.add("show");
@@ -511,10 +519,12 @@ const FileUpload = {
       this.uploadSpeedData.lastLoaded = progressInfo.loaded;
     }
 
-    // PWA环境下强制更新DOM
-    if (isPWA && speedElement) {
+    // HTTPS/PWA环境下强制更新DOM
+    if ((isPWA || window.location.protocol === "https:") && speedElement) {
       speedElement.style.display = "block";
       speedElement.style.visibility = "visible";
+      // 强制重绘
+      speedElement.offsetHeight;
     }
   },
 

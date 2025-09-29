@@ -37,6 +37,14 @@ const STATIC_ASSETS = [
 // 需要网络优先的资源（API请求等）
 const NETWORK_FIRST_PATTERNS = [/\/api\//, /\/auth\//];
 
+// 需要完全跳过缓存的请求（实时数据）
+const NO_CACHE_PATTERNS = [
+  /\/api\/events/, // SSE连接
+  /\/api\/files\/upload/, // 文件上传
+  /\/api\/files\/download/, // 文件下载
+  /\/api\/sync/, // 同步请求
+];
+
 // 需要缓存优先的资源
 const CACHE_FIRST_PATTERNS = [
   /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/,
@@ -122,6 +130,11 @@ async function handleFetch(request) {
   const url = new URL(request.url);
 
   try {
+    // 实时数据请求：完全跳过缓存，直接网络请求
+    if (NO_CACHE_PATTERNS.some((pattern) => pattern.test(url.pathname))) {
+      return await noCache(request);
+    }
+
     // API 请求：网络优先策略
     if (NETWORK_FIRST_PATTERNS.some((pattern) => pattern.test(url.pathname))) {
       return await networkFirst(request);
@@ -157,6 +170,12 @@ async function handleFetch(request) {
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
   }
+}
+
+// 无缓存策略（实时数据）
+async function noCache(request) {
+  // 直接网络请求，不进行任何缓存操作
+  return fetch(request);
 }
 
 // 网络优先策略

@@ -1278,6 +1278,14 @@ const UI = {
       return;
     }
 
+    // HTTPS环境下的特殊处理
+    const isHTTPS = window.location.protocol === "https:";
+    if (isHTTPS) {
+      // 强制显示进度条
+      progressElement.style.display = "block";
+      progressElement.style.visibility = "visible";
+    }
+
     // 显示进度条
     progressElement.classList.add("show");
     progressText.textContent = "开始下载...";
@@ -1322,10 +1330,12 @@ const UI = {
           lastLoaded = loaded;
         }
 
-        // PWA环境下强制更新DOM
-        if (isPWA && speedElement) {
+        // HTTPS/PWA环境下强制更新DOM
+        if ((isPWA || window.location.protocol === "https:") && speedElement) {
           speedElement.style.display = "block";
           speedElement.style.visibility = "visible";
+          // 强制重绘
+          speedElement.offsetHeight;
         }
       });
 
@@ -1411,10 +1421,12 @@ const UI = {
           lastLoaded = loaded;
         }
 
-        // PWA环境下强制更新DOM
-        if (isPWA && speedElement) {
+        // HTTPS/PWA环境下强制更新DOM
+        if ((isPWA || window.location.protocol === "https:") && speedElement) {
           speedElement.style.display = "block";
           speedElement.style.visibility = "visible";
+          // 强制重绘
+          speedElement.offsetHeight;
         }
       });
 
