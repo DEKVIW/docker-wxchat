@@ -24,6 +24,9 @@ class RealtimeManager {
       this.disconnect();
     }
 
+    // 设置连接中状态
+    UI.setConnectionStatus("connecting");
+
     try {
       // 获取认证token
       const token = Auth && Auth.getToken() ? Auth.getToken() : "";
@@ -31,6 +34,39 @@ class RealtimeManager {
         this.deviceId
       )}&token=${encodeURIComponent(token)}`;
       this.eventSource = new EventSource(url);
+
+      // 监听EventSource状态变化
+      const checkConnection = () => {
+        if (this.eventSource) {
+          switch (this.eventSource.readyState) {
+            case EventSource.CONNECTING:
+              console.log("SSE状态: 连接中");
+              break;
+            case EventSource.OPEN:
+              console.log("SSE状态: 已连接");
+              this.isConnected = true;
+              this.reconnectAttempts = 0;
+              this.emit("connected");
+              UI.setConnectionStatus("connected");
+              // 清除状态检查
+              if (this.connectionCheckInterval) {
+                clearInterval(this.connectionCheckInterval);
+                this.connectionCheckInterval = null;
+              }
+              break;
+            case EventSource.CLOSED:
+              console.log("SSE状态: 已关闭");
+              this.isConnected = false;
+              this.emit("disconnected");
+              UI.setConnectionStatus("disconnected");
+              this.handleReconnect();
+              break;
+          }
+        }
+      };
+
+      // 定期检查连接状态
+      this.connectionCheckInterval = setInterval(checkConnection, 1000);
 
       // 连接成功
       this.eventSource.addEventListener("connection", (event) => {
@@ -108,6 +144,13 @@ class RealtimeManager {
       this.eventSource.close();
       this.eventSource = null;
     }
+
+    // 清除连接状态检查
+    if (this.connectionCheckInterval) {
+      clearInterval(this.connectionCheckInterval);
+      this.connectionCheckInterval = null;
+    }
+
     this.stopLongPolling();
     this.isConnected = false;
     this.emit("disconnected");

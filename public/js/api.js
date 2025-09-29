@@ -204,21 +204,27 @@ const API = {
     }
   },
 
-  // 带进度的文件上传
+  // 带进度的文件上传 - 使用XMLHttpRequest，但优化HTTPS环境
   uploadWithProgress(url, formData, onProgress) {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
+      const isHTTPS = window.location.protocol === "https:";
+      const isPWA =
+        window.matchMedia("(display-mode: standalone)").matches ||
+        window.navigator.standalone === true;
 
-      // 速度计算变量
-      let startTime = Date.now();
-      let lastUpdateTime = startTime;
-      let lastLoaded = 0;
+      // 获取文件大小
+      const file = formData.get("file");
+      const totalSize = file.size;
+      let lastProgress = 0;
 
+      // 监听真实的progress事件
       xhr.upload.addEventListener("progress", (event) => {
         if (event.lengthComputable) {
+          hasRealProgress = true; // 标记真实进度已触发
           const percentComplete = (event.loaded / event.total) * 100;
+          lastProgress = percentComplete;
 
-          // 只传递基本进度信息，不计算速度
           onProgress({
             percent: percentComplete,
             loaded: event.loaded,
@@ -227,7 +233,49 @@ const API = {
         }
       });
 
+      // Safari/PWA环境下的强制模拟进度机制
+      let progressInterval = null;
+      let simulatedProgress = 0;
+      let hasRealProgress = false;
+
+      // Safari/PWA环境检测
+      const isSafari = /^((?!chrome|android).)*safari/i.test(
+        navigator.userAgent
+      );
+      const needsSimulation = isSafari || isPWA || isHTTPS;
+
+      if (needsSimulation) {
+        const updateInterval = isPWA ? 100 : 200;
+
+        progressInterval = setInterval(() => {
+          // 如果真实进度事件没有触发，强制使用模拟进度
+          if (!hasRealProgress) {
+            simulatedProgress = Math.min(
+              simulatedProgress + Math.random() * 2 + 1,
+              90
+            );
+
+            onProgress({
+              percent: simulatedProgress,
+              loaded: (simulatedProgress / 100) * totalSize,
+              total: totalSize,
+            });
+          }
+        }, updateInterval);
+      }
+
       xhr.addEventListener("load", () => {
+        if (progressInterval) {
+          clearInterval(progressInterval);
+        }
+
+        // 确保进度达到100%
+        onProgress({
+          percent: 100,
+          loaded: totalSize,
+          total: totalSize,
+        });
+
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const response = JSON.parse(xhr.responseText);
@@ -241,12 +289,15 @@ const API = {
       });
 
       xhr.addEventListener("error", () => {
+        if (progressInterval) {
+          clearInterval(progressInterval);
+        }
         reject(new Error("网络错误"));
       });
 
       xhr.open("POST", url);
 
-      // 添加认证头（必须在open之后设置）
+      // 添加认证头
       if (Auth && Auth.getToken()) {
         xhr.setRequestHeader("Authorization", `Bearer ${Auth.getToken()}`);
       }

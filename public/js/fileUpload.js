@@ -420,7 +420,7 @@ const FileUpload = {
                         <div class="upload-progress-fill" id="uploadProgressFill"></div>
                     </div>
                     <div class="upload-progress-info">
-                        <div class="upload-progress-text" id="uploadProgressText">准备上传...</div>
+                        <div class="upload-progress-text" id="uploadProgressText"></div>
                         <div class="upload-progress-speed" id="uploadProgressSpeed"></div>
                     </div>
                 </div>
@@ -463,17 +463,22 @@ const FileUpload = {
       window.matchMedia("(display-mode: standalone)").matches ||
       window.navigator.standalone === true;
 
-    // HTTPS环境下的特殊处理
+    // HTTPS/PWA环境下的特殊处理
     const isHTTPS = window.location.protocol === "https:";
-    if (isHTTPS && progressElement) {
+    if ((isHTTPS || isPWA) && progressElement) {
       // 强制显示进度条
       progressElement.style.display = "block";
       progressElement.style.visibility = "visible";
+      progressElement.style.opacity = "1";
     }
 
     // 显示进度条
     if (progressElement) {
       progressElement.classList.add("show");
+      // 强制显示进度条
+      progressElement.style.display = "block";
+      progressElement.style.visibility = "visible";
+      progressElement.style.opacity = "1";
     }
 
     if (progressFill) {
@@ -484,6 +489,15 @@ const FileUpload = {
       progressText.textContent = `上传中... ${Math.round(
         progressInfo.percent
       )}%`;
+
+      // HTTPS/PWA环境下强制更新文本显示
+      if (isHTTPS || isPWA) {
+        progressText.style.display = "block";
+        progressText.style.visibility = "visible";
+        progressText.style.opacity = "1";
+        // 强制重绘
+        progressText.offsetHeight;
+      }
     }
 
     // 在UI层计算速度，与下载逻辑完全一致

@@ -1752,4 +1752,58 @@
     font-size: 0.8rem;
     min-width: 60px;
   }
+
+  /* 移动端上传进度条优化 */
+  .upload-progress {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    margin-top: 6px;
+    margin-bottom: 6px;
+  }
+
+  .upload-progress.show {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  .upload-progress-bar {
+    height: 8px;
+    margin-bottom: 6px;
+  }
+
+  .upload-progress-text {
+    font-size: 0.8rem;
+  }
+
+  .upload-progress-speed {
+    font-size: 0.75rem;
+  }
+}
+
+/* PWA环境下的上传进度条强制显示 */
+@media (display-mode: standalone) {
+  .upload-progress {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  .upload-progress.show {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  /* PWA环境下进度条更明显 */
+  .upload-progress-bar {
+    height: 8px;
+    background-color: rgba(7, 193, 96, 0.3);
+  }
+
+  .upload-progress-fill {
+    background: linear-gradient(90deg, #07c160, #00d4aa);
+    box-shadow: 0 0 4px rgba(7, 193, 96, 0.3);
+  }
 }

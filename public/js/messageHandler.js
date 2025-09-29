@@ -351,7 +351,7 @@ const MessageHandler = {
 
     try {
       UI.setSendButtonState(true, true);
-      UI.setConnectionStatus("connecting");
+      // 移除错误的连接状态设置，发送消息不应该改变连接状态
 
       const deviceId = Utils.getDeviceId();
       await API.sendMessage(content, deviceId);
@@ -467,7 +467,7 @@ const MessageHandler = {
       onConfirm: async () => {
         try {
           UI.setSendButtonState(true, true);
-          UI.setConnectionStatus("connecting");
+          // 移除错误的连接状态设置，清空消息不应该改变连接状态
 
           // 执行清理操作
           const result = await API.clearAllData("1234"); // 自动传递默认确认码
@@ -491,7 +491,7 @@ const MessageHandler = {
         } catch (error) {
           console.error("数据清理失败:", error);
           UI.showError(error.message || CONFIG.ERRORS.CLEAR_FAILED);
-          UI.setConnectionStatus("disconnected");
+          // 移除错误的连接状态设置，错误时也不应该改变连接状态
         } finally {
           UI.setSendButtonState(false, false);
         }
