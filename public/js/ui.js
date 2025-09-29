@@ -411,16 +411,6 @@ const UI = {
                     </div>
                     <div class="image-download-progress-text">准备下载...</div>
                 </div>
-                <div class="image-actions" style="position: absolute; top: 8px; right: 8px; display: flex; gap: 4px;">
-                    <button class="image-download-btn" onclick="UI.downloadImageWithProgress('${
-                      message.r2_key
-                    }', '${this.escapeHtml(
-        message.original_name
-      )}', '${safeId}')" title="下载图片">⬇️</button>
-                    <button class="image-delete-btn" onclick="UI.deleteMessage('${
-                      message.id
-                    }')" title="删除消息">🗑️</button>
-                </div>
                 <div class="image-error" id="error-${safeId}" style="display: none;">
                     <span>🖼️ 图片加载失败</span>
                     <button onclick="UI.retryLoadImage('${
@@ -486,10 +476,10 @@ const UI = {
       isOwn ? "own" : "other"
     } fade-in"><div class="message-content"><div class="file-message"><div class="file-info"><div class="file-icon">${fileIcon}</div><div class="file-details"><div class="file-name">${this.escapeHtml(
       message.original_name
-    )}</div><div class="file-size">${fileSize}</div></div></div><div class="file-actions"><button class="download-btn" onclick="API.downloadFile('${
+    )}</div><div class="file-size">${fileSize}</div></div></div><div class="file-actions"><button class="download-btn" onclick="UI.downloadFileWithProgress('${
       message.r2_key
-    }', '${this.escapeHtml(
-      message.original_name
+    }', '${this.escapeHtml(message.original_name)}', '${this.createSafeId(
+      message.r2_key
     )}')">⬇️ 下载</button><button class="delete-btn" onclick="UI.deleteMessage('${
       message.id
     }')" title="删除消息">🗑️ 删除</button></div>${imagePreview}</div></div><div class="message-meta"><span>${deviceName}</span><span class="message-time">${time}</span></div></div>`;

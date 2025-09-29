@@ -1513,48 +1513,6 @@
   font-weight: 400;
 }
 
-/* 图片操作按钮样式 */
-.image-actions {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  display: flex;
-  gap: 4px;
-  z-index: 5;
-}
-
-.image-download-btn,
-.image-delete-btn {
-  background: rgba(0, 0, 0, 0.6);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 12px;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(4px);
-}
-
-.image-download-btn:hover {
-  background: rgba(7, 193, 96, 0.8);
-  transform: scale(1.1);
-}
-
-.image-delete-btn:hover {
-  background: rgba(239, 68, 68, 0.8);
-  transform: scale(1.1);
-}
-
-.image-download-btn:active,
-.image-delete-btn:active {
-  transform: scale(0.95);
-}
-
 /* 文件消息按钮样式 */
 .file-actions .download-btn,
 .file-actions .delete-btn {
