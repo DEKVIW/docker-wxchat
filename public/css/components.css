@@ -1454,6 +1454,14 @@
   font-weight: 400;
 }
 
+.download-progress-speed {
+  font-size: 0.7rem;
+  color: #999;
+  text-align: center;
+  font-weight: 400;
+  margin-top: 2px;
+}
+
 /* 图片下载进度条样式 */
 .image-download-progress {
   position: absolute;
@@ -1511,6 +1519,14 @@
   color: #ffffff;
   text-align: center;
   font-weight: 400;
+}
+
+.image-download-progress-speed {
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.8);
+  text-align: center;
+  font-weight: 400;
+  margin-top: 2px;
 }
 
 /* 文件消息按钮样式 */

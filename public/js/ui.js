@@ -410,6 +410,7 @@ const UI = {
                         <div class="image-download-progress-fill"></div>
                     </div>
                     <div class="image-download-progress-text">准备下载...</div>
+                    <div class="image-download-progress-speed" id="img-speed-${safeId}"></div>
                 </div>
                 <div class="image-error" id="error-${safeId}" style="display: none;">
                     <span>🖼️ 图片加载失败</span>
@@ -427,7 +428,9 @@ const UI = {
       message.original_name
     )}</div><div class="file-size">${fileSize}</div></div></div><div class="download-progress" id="progress-${this.createSafeId(
       message.r2_key
-    )}"><div class="download-progress-bar"><div class="download-progress-fill"></div></div><div class="download-progress-text">准备下载...</div></div><div class="file-actions"><button class="download-btn" onclick="UI.downloadFileWithProgress('${
+    )}"><div class="download-progress-bar"><div class="download-progress-fill"></div></div><div class="download-progress-text">准备下载...</div><div class="download-progress-speed" id="speed-${this.createSafeId(
+      message.r2_key
+    )}"></div></div><div class="file-actions"><button class="download-btn" onclick="UI.downloadFileWithProgress('${
       message.r2_key
     }', '${this.escapeHtml(message.original_name)}', '${this.createSafeId(
       message.r2_key
@@ -1260,6 +1263,7 @@ const UI = {
     const progressText = progressElement?.querySelector(
       ".download-progress-text"
     );
+    const speedElement = document.getElementById(`speed-${progressId}`);
 
     if (!progressElement || !progressFill || !progressText) {
       console.error("进度元素未找到");
@@ -1269,21 +1273,50 @@ const UI = {
     // 显示进度条
     progressElement.classList.add("show");
     progressText.textContent = "开始下载...";
+    if (speedElement) speedElement.textContent = "";
+
+    // 速度计算变量
+    let startTime = Date.now();
+    let lastUpdateTime = startTime;
+    let lastLoaded = 0;
 
     try {
       await API.downloadFile(r2Key, fileName, (percent, loaded, total) => {
+        const currentTime = Date.now();
+        const timeDiff = (currentTime - lastUpdateTime) / 1000; // 秒
+        const loadedDiff = loaded - lastLoaded; // 字节
+
         progressFill.style.width = `${percent}%`;
         progressText.textContent = `下载中... ${percent}%`;
+
+        // 计算速度（每0.5秒更新一次）
+        if (timeDiff >= 0.5 && loadedDiff > 0) {
+          const speedMBps = loadedDiff / (1024 * 1024) / timeDiff;
+          const speedKBps = loadedDiff / 1024 / timeDiff;
+
+          if (speedElement) {
+            if (speedMBps >= 1) {
+              speedElement.textContent = `${speedMBps.toFixed(1)} MB/s`;
+            } else {
+              speedElement.textContent = `${speedKBps.toFixed(1)} KB/s`;
+            }
+          }
+
+          lastUpdateTime = currentTime;
+          lastLoaded = loaded;
+        }
       });
 
       // 下载完成
       progressText.textContent = "下载完成！";
+      if (speedElement) speedElement.textContent = "";
       setTimeout(() => {
         progressElement.classList.remove("show");
       }, 2000);
     } catch (error) {
       console.error("下载失败:", error);
       progressText.textContent = "下载失败";
+      if (speedElement) speedElement.textContent = "";
       progressFill.style.background = "#ef4444";
       setTimeout(() => {
         progressElement.classList.remove("show");
@@ -1305,6 +1338,7 @@ const UI = {
     const progressText = progressElement?.querySelector(
       ".image-download-progress-text"
     );
+    const speedElement = document.getElementById(`img-speed-${progressId}`);
 
     if (!progressElement || !progressFill || !progressText) {
       console.error("图片进度元素未找到");
@@ -1314,21 +1348,50 @@ const UI = {
     // 显示进度条
     progressElement.classList.add("show");
     progressText.textContent = "开始下载...";
+    if (speedElement) speedElement.textContent = "";
+
+    // 速度计算变量
+    let startTime = Date.now();
+    let lastUpdateTime = startTime;
+    let lastLoaded = 0;
 
     try {
       await API.downloadFile(r2Key, fileName, (percent, loaded, total) => {
+        const currentTime = Date.now();
+        const timeDiff = (currentTime - lastUpdateTime) / 1000; // 秒
+        const loadedDiff = loaded - lastLoaded; // 字节
+
         progressFill.style.width = `${percent}%`;
         progressText.textContent = `下载中... ${percent}%`;
+
+        // 计算速度（每0.5秒更新一次）
+        if (timeDiff >= 0.5 && loadedDiff > 0) {
+          const speedMBps = loadedDiff / (1024 * 1024) / timeDiff;
+          const speedKBps = loadedDiff / 1024 / timeDiff;
+
+          if (speedElement) {
+            if (speedMBps >= 1) {
+              speedElement.textContent = `${speedMBps.toFixed(1)} MB/s`;
+            } else {
+              speedElement.textContent = `${speedKBps.toFixed(1)} KB/s`;
+            }
+          }
+
+          lastUpdateTime = currentTime;
+          lastLoaded = loaded;
+        }
       });
 
       // 下载完成
       progressText.textContent = "下载完成！";
+      if (speedElement) speedElement.textContent = "";
       setTimeout(() => {
         progressElement.classList.remove("show");
       }, 2000);
     } catch (error) {
       console.error("图片下载失败:", error);
       progressText.textContent = "下载失败";
+      if (speedElement) speedElement.textContent = "";
       progressFill.style.background = "#ef4444";
       setTimeout(() => {
         progressElement.classList.remove("show");
