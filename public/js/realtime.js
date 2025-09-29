@@ -125,11 +125,19 @@ class RealtimeManager {
 
     UI.setConnectionStatus("reconnecting");
 
+    // PWA环境下的特殊处理
+    const isPWA =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true;
+
+    // PWA环境下使用更短的重连延迟
+    const pwaDelay = isPWA ? Math.min(delay, 2000) : delay;
+
     setTimeout(() => {
       if (!this.isConnected) {
         this.connect();
       }
-    }, delay);
+    }, pwaDelay);
   }
 
   // 降级到长轮询
@@ -297,8 +305,23 @@ const Realtime = new RealtimeManager();
 
 // 网络状态监听
 window.addEventListener("online", () => {
-  if (!Realtime.isConnectionAlive()) {
-    Realtime.connect();
+  // PWA环境下的特殊处理
+  const isPWA =
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true;
+
+  if (isPWA) {
+    // PWA环境：延迟重连，确保网络完全恢复
+    setTimeout(() => {
+      if (!Realtime.isConnectionAlive()) {
+        Realtime.connect();
+      }
+    }, 1000);
+  } else {
+    // 普通浏览器环境：立即重连
+    if (!Realtime.isConnectionAlive()) {
+      Realtime.connect();
+    }
   }
 });
 

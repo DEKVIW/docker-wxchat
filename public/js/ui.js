@@ -853,6 +853,12 @@ const UI = {
           statusElement.classList.remove("online");
         }
       }, 3000);
+    } else if (status === "reconnecting") {
+      statusElement.textContent = "重连中...";
+      statusElement.className = "connection-status reconnecting";
+    } else if (status === "connecting") {
+      statusElement.textContent = "连接中...";
+      statusElement.className = "connection-status connecting";
     } else if (status === "disconnected" || status === "offline") {
       statusElement.textContent = "离线模式";
       statusElement.className = "connection-status offline";
