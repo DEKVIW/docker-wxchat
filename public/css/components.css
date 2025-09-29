@@ -565,37 +565,78 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
   color: #07c160;
   font-weight: 500;
-  padding: 0.75rem;
   background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
   border-radius: 12px;
-  margin-bottom: 0.75rem;
   border: 1px solid rgba(7, 193, 96, 0.2);
 }
 
 .upload-spinner {
-  animation: spin 1s linear infinite;
   font-size: 1.5rem;
 }
 
 .upload-progress {
+  margin-top: 8px;
+  margin-bottom: 8px;
+  display: none;
+}
+
+.upload-progress.show {
+  display: block;
+}
+
+.upload-progress-bar {
   width: 100%;
   height: 6px;
   background-color: rgba(7, 193, 96, 0.2);
   border-radius: 3px;
   overflow: hidden;
   position: relative;
+  margin-bottom: 4px;
 }
 
-.progress-bar {
+.upload-progress-fill {
   height: 100%;
   background: linear-gradient(90deg, #07c160, #00d4aa);
   border-radius: 3px;
   width: 0%;
   transition: width 0.3s ease;
   position: relative;
+}
+
+.upload-progress-fill::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  animation: shimmer 1.5s infinite;
+}
+
+.upload-progress-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.upload-progress-text {
+  font-size: 0.75rem;
+  color: #666;
+  font-weight: 400;
+}
+
+.upload-progress-speed {
+  font-size: 0.7rem;
+  color: #999;
+  font-weight: 400;
 }
 
 .progress-bar::after {
@@ -1454,12 +1495,16 @@
   font-weight: 400;
 }
 
+.download-progress-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .download-progress-speed {
   font-size: 0.7rem;
   color: #999;
-  text-align: center;
   font-weight: 400;
-  margin-top: 2px;
 }
 
 /* 图片下载进度条样式 */
@@ -1521,12 +1566,17 @@
   font-weight: 400;
 }
 
+.image-download-progress-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+}
+
 .image-download-progress-speed {
   font-size: 0.65rem;
   color: rgba(255, 255, 255, 0.8);
-  text-align: center;
   font-weight: 400;
-  margin-top: 2px;
 }
 
 /* 文件消息按钮样式 */

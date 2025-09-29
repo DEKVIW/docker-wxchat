@@ -209,10 +209,21 @@ const API = {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
 
+      // 速度计算变量
+      let startTime = Date.now();
+      let lastUpdateTime = startTime;
+      let lastLoaded = 0;
+
       xhr.upload.addEventListener("progress", (event) => {
         if (event.lengthComputable) {
           const percentComplete = (event.loaded / event.total) * 100;
-          onProgress(percentComplete);
+
+          // 只传递基本进度信息，不计算速度
+          onProgress({
+            percent: percentComplete,
+            loaded: event.loaded,
+            total: event.total,
+          });
         }
       });
 

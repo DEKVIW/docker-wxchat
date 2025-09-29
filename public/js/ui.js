@@ -409,8 +409,10 @@ const UI = {
                     <div class="image-download-progress-bar">
                         <div class="image-download-progress-fill"></div>
                     </div>
-                    <div class="image-download-progress-text">准备下载...</div>
-                    <div class="image-download-progress-speed" id="img-speed-${safeId}"></div>
+                    <div class="image-download-progress-info">
+                        <div class="image-download-progress-text">准备下载...</div>
+                        <div class="image-download-progress-speed" id="img-speed-${safeId}"></div>
+                    </div>
                 </div>
                 <div class="image-error" id="error-${safeId}" style="display: none;">
                     <span>🖼️ 图片加载失败</span>
@@ -428,9 +430,9 @@ const UI = {
       message.original_name
     )}</div><div class="file-size">${fileSize}</div></div></div><div class="download-progress" id="progress-${this.createSafeId(
       message.r2_key
-    )}"><div class="download-progress-bar"><div class="download-progress-fill"></div></div><div class="download-progress-text">准备下载...</div><div class="download-progress-speed" id="speed-${this.createSafeId(
+    )}"><div class="download-progress-bar"><div class="download-progress-fill"></div></div><div class="download-progress-info"><div class="download-progress-text">准备下载...</div><div class="download-progress-speed" id="speed-${this.createSafeId(
       message.r2_key
-    )}"></div></div><div class="file-actions"><button class="download-btn" onclick="UI.downloadFileWithProgress('${
+    )}"></div></div></div><div class="file-actions"><button class="download-btn" onclick="UI.downloadFileWithProgress('${
       message.r2_key
     }', '${this.escapeHtml(message.original_name)}', '${this.createSafeId(
       message.r2_key

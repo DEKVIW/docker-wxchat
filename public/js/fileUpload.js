@@ -383,8 +383,8 @@ const FileUpload = {
     this.updateBatchProgress(file.name, current, total);
 
     // 上传文件（带进度）
-    const result = await API.uploadFile(file, deviceId, (progress) => {
-      this.updateFileProgress(progress);
+    const result = await API.uploadFile(file, deviceId, (progressInfo) => {
+      this.updateFileProgress(progressInfo);
     });
 
     return result;
@@ -411,14 +411,17 @@ const FileUpload = {
     if (statusElement) {
       statusElement.style.display = "flex";
       statusElement.innerHTML = `
-                <div class="upload-spinner">⏳</div>
                 <div class="upload-info">
                     <div class="upload-text">正在上传 ${fileCount} 个文件...</div>
                     <div class="upload-current" id="uploadCurrent"></div>
                 </div>
-                <div class="upload-progress">
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="progressFill"></div>
+                <div class="upload-progress" id="uploadProgress">
+                    <div class="upload-progress-bar">
+                        <div class="upload-progress-fill" id="uploadProgressFill"></div>
+                    </div>
+                    <div class="upload-progress-info">
+                        <div class="upload-progress-text" id="uploadProgressText">准备上传...</div>
+                        <div class="upload-progress-speed" id="uploadProgressSpeed"></div>
                     </div>
                 </div>
             `;
@@ -449,10 +452,55 @@ const FileUpload = {
   },
 
   // 更新文件上传进度
-  updateFileProgress(progress) {
-    const progressFill = document.getElementById("progressFill");
+  updateFileProgress(progressInfo) {
+    const progressElement = document.getElementById("uploadProgress");
+    const progressFill = document.getElementById("uploadProgressFill");
+    const progressText = document.getElementById("uploadProgressText");
+    const speedElement = document.getElementById("uploadProgressSpeed");
+
+    // 显示进度条
+    if (progressElement) {
+      progressElement.classList.add("show");
+    }
+
     if (progressFill) {
-      progressFill.style.width = `${progress}%`;
+      progressFill.style.width = `${progressInfo.percent}%`;
+    }
+
+    if (progressText) {
+      progressText.textContent = `上传中... ${Math.round(
+        progressInfo.percent
+      )}%`;
+    }
+
+    // 在UI层计算速度，与下载逻辑完全一致
+    if (!this.uploadSpeedData) {
+      this.uploadSpeedData = {
+        startTime: Date.now(),
+        lastUpdateTime: Date.now(),
+        lastLoaded: 0,
+      };
+    }
+
+    const currentTime = Date.now();
+    const timeDiff = (currentTime - this.uploadSpeedData.lastUpdateTime) / 1000;
+    const loadedDiff = progressInfo.loaded - this.uploadSpeedData.lastLoaded;
+
+    // 计算速度（每0.5秒更新一次）
+    if (timeDiff >= 0.5 && loadedDiff > 0) {
+      const speedMBps = loadedDiff / (1024 * 1024) / timeDiff;
+      const speedKBps = loadedDiff / 1024 / timeDiff;
+
+      if (speedElement) {
+        if (speedMBps >= 1) {
+          speedElement.textContent = `${speedMBps.toFixed(1)} MB/s`;
+        } else {
+          speedElement.textContent = `${speedKBps.toFixed(1)} KB/s`;
+        }
+      }
+
+      this.uploadSpeedData.lastUpdateTime = currentTime;
+      this.uploadSpeedData.lastLoaded = progressInfo.loaded;
     }
   },
 
@@ -572,16 +620,12 @@ const uploadStyles = `
         background: #f8f9fa;
         border: 1px solid #e9ecef;
         border-radius: 12px;
-        padding: 1rem;
-        margin-bottom: 1rem;
         display: flex;
         align-items: center;
-        gap: 1rem;
     }
 
     .upload-spinner {
         font-size: 1.2rem;
-        animation: spin 1s linear infinite;
     }
 
     .upload-info {
