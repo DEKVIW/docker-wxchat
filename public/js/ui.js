@@ -405,6 +405,22 @@ const UI = {
                 <img id="${imageId}" alt="${this.escapeHtml(
         message.original_name
       )}" style="display: none;" />
+                <div class="image-download-progress" id="img-progress-${safeId}">
+                    <div class="image-download-progress-bar">
+                        <div class="image-download-progress-fill"></div>
+                    </div>
+                    <div class="image-download-progress-text">准备下载...</div>
+                </div>
+                <div class="image-actions" style="position: absolute; top: 8px; right: 8px; display: flex; gap: 4px;">
+                    <button class="image-download-btn" onclick="UI.downloadImageWithProgress('${
+                      message.r2_key
+                    }', '${this.escapeHtml(
+        message.original_name
+      )}', '${safeId}')" title="下载图片">⬇️</button>
+                    <button class="image-delete-btn" onclick="UI.deleteMessage('${
+                      message.id
+                    }')" title="删除消息">🗑️</button>
+                </div>
                 <div class="image-error" id="error-${safeId}" style="display: none;">
                     <span>🖼️ 图片加载失败</span>
                     <button onclick="UI.retryLoadImage('${
@@ -419,10 +435,12 @@ const UI = {
 
     return `<div class="chat-bubble"><div class="file-message"><div class="file-info"><div class="file-icon">${fileIcon}</div><div class="file-details"><div class="file-name">${this.escapeHtml(
       message.original_name
-    )}</div><div class="file-size">${fileSize}</div></div></div><div class="file-actions"><button class="download-btn" onclick="API.downloadFile('${
+    )}</div><div class="file-size">${fileSize}</div></div></div><div class="download-progress" id="progress-${this.createSafeId(
       message.r2_key
-    }', '${this.escapeHtml(
-      message.original_name
+    )}"><div class="download-progress-bar"><div class="download-progress-fill"></div></div><div class="download-progress-text">准备下载...</div></div><div class="file-actions"><button class="download-btn" onclick="UI.downloadFileWithProgress('${
+      message.r2_key
+    }', '${this.escapeHtml(message.original_name)}', '${this.createSafeId(
+      message.r2_key
     )}')">⬇️ 下载</button><button class="delete-btn" onclick="UI.deleteMessage('${
       message.id
     }')" title="删除消息">🗑️ 删除</button></div>${imagePreview}</div></div>
@@ -1240,6 +1258,94 @@ const UI = {
           this.showEmpty("还没有消息，开始聊天吧！");
         }
       }, 300);
+    }
+  },
+
+  // 带进度显示的文件下载
+  async downloadFileWithProgress(r2Key, fileName, progressId) {
+    const progressElement = document.getElementById(`progress-${progressId}`);
+    const progressFill = progressElement?.querySelector(
+      ".download-progress-fill"
+    );
+    const progressText = progressElement?.querySelector(
+      ".download-progress-text"
+    );
+
+    if (!progressElement || !progressFill || !progressText) {
+      console.error("进度元素未找到");
+      return;
+    }
+
+    // 显示进度条
+    progressElement.classList.add("show");
+    progressText.textContent = "开始下载...";
+
+    try {
+      await API.downloadFile(r2Key, fileName, (percent, loaded, total) => {
+        progressFill.style.width = `${percent}%`;
+        progressText.textContent = `下载中... ${percent}%`;
+      });
+
+      // 下载完成
+      progressText.textContent = "下载完成！";
+      setTimeout(() => {
+        progressElement.classList.remove("show");
+      }, 2000);
+    } catch (error) {
+      console.error("下载失败:", error);
+      progressText.textContent = "下载失败";
+      progressFill.style.background = "#ef4444";
+      setTimeout(() => {
+        progressElement.classList.remove("show");
+        progressFill.style.background =
+          "linear-gradient(90deg, #07c160, #00d4aa)";
+        progressFill.style.width = "0%";
+      }, 3000);
+    }
+  },
+
+  // 带进度显示的图片下载
+  async downloadImageWithProgress(r2Key, fileName, progressId) {
+    const progressElement = document.getElementById(
+      `img-progress-${progressId}`
+    );
+    const progressFill = progressElement?.querySelector(
+      ".image-download-progress-fill"
+    );
+    const progressText = progressElement?.querySelector(
+      ".image-download-progress-text"
+    );
+
+    if (!progressElement || !progressFill || !progressText) {
+      console.error("图片进度元素未找到");
+      return;
+    }
+
+    // 显示进度条
+    progressElement.classList.add("show");
+    progressText.textContent = "开始下载...";
+
+    try {
+      await API.downloadFile(r2Key, fileName, (percent, loaded, total) => {
+        progressFill.style.width = `${percent}%`;
+        progressText.textContent = `下载中... ${percent}%`;
+      });
+
+      // 下载完成
+      progressText.textContent = "下载完成！";
+      setTimeout(() => {
+        progressElement.classList.remove("show");
+      }, 2000);
+    } catch (error) {
+      console.error("图片下载失败:", error);
+      progressText.textContent = "下载失败";
+      progressFill.style.background = "#ef4444";
+      setTimeout(() => {
+        progressElement.classList.remove("show");
+        progressFill.style.background =
+          "linear-gradient(90deg, #ffffff, #e0e0e0)";
+        progressFill.style.width = "0%";
+      }, 3000);
     }
   },
 };

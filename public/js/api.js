@@ -245,7 +245,7 @@ const API = {
   },
 
   // 下载文件
-  async downloadFile(r2Key, fileName) {
+  async downloadFile(r2Key, fileName, onProgress) {
     try {
       const url = `${CONFIG.API.ENDPOINTS.FILES_DOWNLOAD}/${r2Key}`;
 
@@ -273,8 +273,32 @@ const API = {
         throw new Error(`下载失败: ${response.status} ${response.statusText}`);
       }
 
-      // 获取文件blob
-      const blob = await response.blob();
+      // 获取文件大小
+      const contentLength = response.headers.get("content-length");
+      const total = parseInt(contentLength, 10);
+      let loaded = 0;
+
+      // 创建ReadableStream来跟踪下载进度
+      const reader = response.body.getReader();
+      const chunks = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) break;
+
+        chunks.push(value);
+        loaded += value.length;
+
+        // 调用进度回调
+        if (onProgress && total > 0) {
+          const percent = Math.round((loaded / total) * 100);
+          onProgress(percent, loaded, total);
+        }
+      }
+
+      // 合并所有chunks为blob
+      const blob = new Blob(chunks);
 
       // 临时禁用网络状态检测，避免下载时误判为离线
       const originalSetConnectionStatus = UI.setConnectionStatus;

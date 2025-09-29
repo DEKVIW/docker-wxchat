@@ -1401,6 +1401,160 @@
   justify-content: flex-start;
 }
 
+/* 下载进度条样式 */
+.download-progress {
+  margin-top: 8px;
+  margin-bottom: 8px;
+  display: none;
+}
+
+.download-progress.show {
+  display: block;
+}
+
+.download-progress-bar {
+  width: 100%;
+  height: 6px;
+  background-color: rgba(7, 193, 96, 0.2);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 4px;
+}
+
+.download-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #07c160, #00d4aa);
+  border-radius: 3px;
+  width: 0%;
+  transition: width 0.3s ease;
+  position: relative;
+}
+
+.download-progress-fill::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  animation: shimmer 1.5s infinite;
+}
+
+.download-progress-text {
+  font-size: 0.75rem;
+  color: #666;
+  text-align: center;
+  font-weight: 400;
+}
+
+/* 图片下载进度条样式 */
+.image-download-progress {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 4px;
+  padding: 6px 8px;
+  display: none;
+  z-index: 10;
+}
+
+.image-download-progress.show {
+  display: block;
+}
+
+.image-download-progress-bar {
+  width: 100%;
+  height: 4px;
+  background-color: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 4px;
+}
+
+.image-download-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ffffff, #e0e0e0);
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.3s ease;
+  position: relative;
+}
+
+.image-download-progress-fill::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.5),
+    transparent
+  );
+  animation: shimmer 1.5s infinite;
+}
+
+.image-download-progress-text {
+  font-size: 0.7rem;
+  color: #ffffff;
+  text-align: center;
+  font-weight: 400;
+}
+
+/* 图片操作按钮样式 */
+.image-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+  z-index: 5;
+}
+
+.image-download-btn,
+.image-delete-btn {
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(4px);
+}
+
+.image-download-btn:hover {
+  background: rgba(7, 193, 96, 0.8);
+  transform: scale(1.1);
+}
+
+.image-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.8);
+  transform: scale(1.1);
+}
+
+.image-download-btn:active,
+.image-delete-btn:active {
+  transform: scale(0.95);
+}
+
 /* 文件消息按钮样式 */
 .file-actions .download-btn,
 .file-actions .delete-btn {
