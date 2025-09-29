@@ -458,6 +458,11 @@ const FileUpload = {
     const progressText = document.getElementById("uploadProgressText");
     const speedElement = document.getElementById("uploadProgressSpeed");
 
+    // 检查是否在PWA环境下
+    const isPWA =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true;
+
     // 显示进度条
     if (progressElement) {
       progressElement.classList.add("show");
@@ -486,8 +491,11 @@ const FileUpload = {
     const timeDiff = (currentTime - this.uploadSpeedData.lastUpdateTime) / 1000;
     const loadedDiff = progressInfo.loaded - this.uploadSpeedData.lastLoaded;
 
-    // 计算速度（每0.5秒更新一次）
-    if (timeDiff >= 0.5 && loadedDiff > 0) {
+    // PWA环境下使用更频繁的更新频率
+    const updateInterval = isPWA ? 0.3 : 0.5;
+
+    // 计算速度
+    if (timeDiff >= updateInterval && loadedDiff > 0) {
       const speedMBps = loadedDiff / (1024 * 1024) / timeDiff;
       const speedKBps = loadedDiff / 1024 / timeDiff;
 
@@ -501,6 +509,12 @@ const FileUpload = {
 
       this.uploadSpeedData.lastUpdateTime = currentTime;
       this.uploadSpeedData.lastLoaded = progressInfo.loaded;
+    }
+
+    // PWA环境下强制更新DOM
+    if (isPWA && speedElement) {
+      speedElement.style.display = "block";
+      speedElement.style.visibility = "visible";
     }
   },
 
