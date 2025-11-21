@@ -242,9 +242,9 @@ const FunctionMenu = {
           const deviceId = Utils.getDeviceId();
           await API.uploadFile(file, deviceId);
 
-          // 刷新消息列表
+          // 刷新消息列表（不重置已加载消息）
           setTimeout(async () => {
-            await MessageHandler.loadMessages(true);
+            await MessageHandler.loadMessages(true, false);
           }, 500);
 
           UI.showSuccess("📸 照片发送成功！");

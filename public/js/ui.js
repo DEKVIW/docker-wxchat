@@ -101,7 +101,7 @@ const UI = {
       return;
     }
 
-    // 检查用户是否在底部
+    // 检查用户是否在底部（在DOM更新前检查，用于决定是否滚动）
     const wasAtBottom = this.isAtBottom();
 
     // 数据库已经按时间戳升序排序，直接使用
@@ -113,10 +113,22 @@ const UI = {
     // 执行增量更新
     this.updateMessagesIncremental(sortedMessages);
 
-    // 只有在用户原本在底部或强制滚动时才滚动到底部
-    if (wasAtBottom || forceScroll) {
-      this.scrollToBottom();
-    }
+    // DOM更新后，再次检查是否在底部（因为DOM更新可能改变了scrollHeight）
+    // 使用 requestAnimationFrame 确保DOM完全更新后再检查
+    requestAnimationFrame(() => {
+      // 如果强制滚动，总是滚动
+      if (forceScroll) {
+        this.scrollToBottom();
+        return;
+      }
+
+      // 如果用户在底部，滚动到底部（显示新消息）
+      // 重新检查，因为DOM更新后scrollHeight可能变化
+      const isStillAtBottom = this.isAtBottom();
+      if (wasAtBottom || isStillAtBottom) {
+        this.scrollToBottom();
+      }
+    });
   },
 
   // 增量更新消息列表

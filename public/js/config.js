@@ -31,8 +31,8 @@ const CONFIG = {
 
   // UI 配置
   UI: {
-    AUTO_REFRESH_INTERVAL: 1000, // 1秒自动刷新（更快响应）
-    MESSAGE_LOAD_LIMIT: 50, // 每次加载消息数量
+    AUTO_REFRESH_INTERVAL: 5000, // 5秒自动刷新（SSE已处理新消息，减少频率）
+    MESSAGE_LOAD_LIMIT: 5000, // 初始加载消息数量（Docker部署无限制）
     ANIMATION_DURATION: 100, // 动画持续时间(ms)（更快动画）
     TYPING_INDICATOR_DELAY: 1000, // 输入指示器延迟
     LOAD_MORE_BATCH_SIZE: 30, // 每次无限滚动加载的消息数量

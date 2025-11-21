@@ -363,7 +363,7 @@ const FileUpload = {
 
       // 添加延迟确保数据库写入完成
       setTimeout(async () => {
-        await MessageHandler.loadMessages(true); // 强制滚动到底部
+        await MessageHandler.loadMessages(true, false); // 强制滚动到底部，不重置已加载消息
       }, 500);
     }
 

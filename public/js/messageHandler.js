@@ -84,8 +84,8 @@ const MessageHandler = {
       });
 
       Realtime.on("newMessages", (data) => {
-        // 立即加载消息，强制滚动到底部
-        this.loadMessages(true);
+        // 立即加载消息，强制滚动到底部（不重置已加载消息）
+        this.loadMessages(true, false);
       });
     } else {
       this.startAutoRefresh();
@@ -102,7 +102,7 @@ const MessageHandler = {
   },
 
   // 加载消息列表
-  async loadMessages(forceScroll = false) {
+  async loadMessages(forceScroll = false, resetMessages = false) {
     // 防止重复请求
     if (this.isLoading) {
       return;
@@ -111,21 +111,66 @@ const MessageHandler = {
     this.isLoading = true;
 
     try {
-      const messages = await API.getMessages();
+      // 检查用户是否在底部（在DOM更新前检查，用于决定是否保留已加载消息）
+      const userAtBottom = UI.isAtBottom();
+      const isFirstLoad = this.lastMessages.length === 0;
+
+      // 如果用户不在底部且不是首次加载且不是强制重置，只检查新消息，不重置列表
+      if (!isFirstLoad && !resetMessages && !userAtBottom && !forceScroll) {
+        // 获取完整消息列表（但只追加新消息，不重置）
+        const allMessages = await API.getMessages(CONFIG.UI.MESSAGE_LOAD_LIMIT);
+        const lastMessageId =
+          this.lastMessages[this.lastMessages.length - 1]?.id;
+
+        // 找到最后一条已加载消息在完整列表中的位置
+        const lastIndex = allMessages.findIndex((m) => m.id === lastMessageId);
+
+        if (lastIndex >= 0) {
+          // 如果找到了最后一条消息，只追加之后的新消息
+          const newMessages = allMessages.slice(lastIndex + 1);
+          if (newMessages.length > 0) {
+            const updatedMessages = [...this.lastMessages, ...newMessages];
+            UI.renderMessages(updatedMessages, false); // 不滚动，因为用户不在底部
+            this.lastMessages = updatedMessages;
+            this.totalLoadedMessages = updatedMessages.length;
+          }
+        } else {
+          // 如果没找到（可能消息被删除或数据库重置），使用完整列表但保持滚动位置
+          const existingIds = new Set(this.lastMessages.map((m) => m.id));
+          const newMessages = allMessages.filter((m) => !existingIds.has(m.id));
+          if (
+            newMessages.length > 0 ||
+            allMessages.length !== this.lastMessages.length
+          ) {
+            // 有新消息或消息数量变化，更新列表但保持滚动位置
+            UI.renderMessages(allMessages, false);
+            this.lastMessages = allMessages;
+            this.totalLoadedMessages = allMessages.length;
+          }
+        }
+
+        this.isLoading = false;
+        return;
+      }
+
+      // 首次加载或用户要求重置：加载完整消息列表
+      const messages = await API.getMessages(CONFIG.UI.MESSAGE_LOAD_LIMIT);
 
       // 检测消息变化
       const hasChanges = this.detectMessageChanges(messages);
 
       // 总是更新UI，即使没有变化（首次加载时需要显示最终状态）
-      const isFirstLoad = this.lastMessages.length === 0;
-      if (hasChanges || forceScroll || isFirstLoad) {
+      if (hasChanges || forceScroll || isFirstLoad || resetMessages) {
         // 智能滚动逻辑：
         // 1. 强制滚动时总是滚动
         // 2. 有新消息且用户在底部时滚动
         // 3. 初次加载时滚动
-        const userAtBottom = UI.isAtBottom();
+        // 注意：这里在DOM更新前检查，但会在renderMessages中再次检查
         const shouldScroll =
-          forceScroll || (hasChanges && userAtBottom) || isFirstLoad;
+          forceScroll ||
+          (hasChanges && userAtBottom) ||
+          isFirstLoad ||
+          resetMessages;
 
         UI.renderMessages(messages, shouldScroll);
 
@@ -133,7 +178,7 @@ const MessageHandler = {
         this.lastMessages = [...messages];
         this.totalLoadedMessages = messages.length;
 
-        // 判断是否还有更多消息
+        // 判断是否还有更多消息（如果返回的消息数少于限制，说明没有更多了）
         this.hasMoreMessages = messages.length >= CONFIG.UI.MESSAGE_LOAD_LIMIT;
 
         // 启动或停止无限滚动监听
@@ -360,20 +405,12 @@ const MessageHandler = {
       UI.clearInput();
 
       // 立即重新加载消息（发送消息后强制滚动到底部）
-      await this.loadMessages(true);
+      await this.loadMessages(true, false);
 
-      // 多次延迟加载，确保消息显示
+      // 延迟一次加载，确保消息显示（减少加载次数）
       setTimeout(async () => {
-        await this.loadMessages(true);
-      }, 200);
-
-      setTimeout(async () => {
-        await this.loadMessages(true);
-      }, 800);
-
-      setTimeout(async () => {
-        await this.loadMessages(true);
-      }, 1500);
+        await this.loadMessages(true, false);
+      }, 500);
 
       // UI.showSuccess(CONFIG.SUCCESS.MESSAGE_SENT); // 不再弹窗提示
     } catch (error) {
@@ -629,9 +666,10 @@ const MessageHandler = {
     // 清除现有定时器
     this.stopAutoRefresh();
 
-    // 设置新的定时器
+    // 设置新的定时器（不强制滚动，不重置消息列表）
     this.autoRefreshTimer = setInterval(() => {
-      this.loadMessages();
+      // 自动刷新时不强制滚动，保留用户当前的滚动位置
+      this.loadMessages(false, false);
     }, CONFIG.UI.AUTO_REFRESH_INTERVAL);
 
     // 自动刷新已启动
@@ -658,9 +696,9 @@ const MessageHandler = {
       // 页面隐藏时停止自动刷新
       this.stopAutoRefresh();
     } else {
-      // 页面显示时重启自动刷新并立即刷新一次（不强制滚动）
+      // 页面显示时重启自动刷新并立即刷新一次（不强制滚动，不重置消息）
       this.startAutoRefresh();
-      this.loadMessages(false);
+      this.loadMessages(false, false);
     }
   },
 
@@ -669,7 +707,7 @@ const MessageHandler = {
     if (navigator.onLine) {
       UI.setConnectionStatus("connected");
       this.restartAutoRefresh();
-      this.loadMessages(false); // 网络恢复时不强制滚动
+      this.loadMessages(false, false); // 网络恢复时不强制滚动，不重置消息
     } else {
       UI.setConnectionStatus("disconnected");
       this.stopAutoRefresh();

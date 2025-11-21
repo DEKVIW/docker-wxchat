@@ -172,12 +172,12 @@ const AIHandler = {
     // 通过API发送消息
     await API.sendMessage(content, deviceId);
 
-    // 立即刷新消息列表
+    // 立即刷新消息列表（不重置已加载消息）
     if (
       window.MessageHandler &&
       typeof MessageHandler.loadMessages === "function"
     ) {
-      await MessageHandler.loadMessages(true);
+      await MessageHandler.loadMessages(true, false);
     }
   },
 
@@ -204,12 +204,12 @@ const AIHandler = {
       if (response.ok) {
         const result = await response.json();
 
-        // 触发消息刷新
+        // 触发消息刷新（不重置已加载消息）
         if (
           window.MessageHandler &&
           typeof MessageHandler.loadMessages === "function"
         ) {
-          await MessageHandler.loadMessages(true);
+          await MessageHandler.loadMessages(true, false);
         }
 
         return result.data.id; // 返回数据库中的真实ID

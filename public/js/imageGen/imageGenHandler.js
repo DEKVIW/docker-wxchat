@@ -79,9 +79,9 @@ const ImageGenHandler = {
             // 9. 显示成功消息
             UI.showSuccess(CONFIG.IMAGE_GEN.SUCCESS_INDICATOR);
             
-            // 10. 刷新消息列表显示新图片
+            // 10. 刷新消息列表显示新图片（不重置已加载消息）
             setTimeout(async () => {
-                await MessageHandler.loadMessages(true); // 强制滚动到底部
+                await MessageHandler.loadMessages(true, false); // 强制滚动到底部
             }, 500);
             
             return {

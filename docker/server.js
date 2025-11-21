@@ -168,8 +168,17 @@ app.post("/api/auth/logout", (req, res) => {
 
 // 获取消息列表
 app.get("/api/messages", authMiddleware, (req, res) => {
-  const limit = parseInt(req.query.limit) || 50;
+  // 支持 limit=0 表示不限制，或 limit=100000 表示最大限制
+  let limit = parseInt(req.query.limit);
   const offset = parseInt(req.query.offset) || 0;
+
+  // 如果 limit 为 0 或未指定，使用默认值 5000
+  // 如果 limit 大于 100000，限制为 100000
+  if (!limit || limit === 0) {
+    limit = 5000; // 默认加载 5000 条
+  } else if (limit > 100000) {
+    limit = 100000; // 最大限制 100000 条
+  }
 
   const query = `
     SELECT m.*, f.original_name, f.file_size, f.mime_type, f.r2_key 
