@@ -19,9 +19,14 @@ const FileUpload = {
 
     // 点击文件按钮
     if (fileButton) {
-      fileButton.addEventListener("click", () => {
+      const openFilePicker = () => {
         fileInput.click();
-      });
+      };
+      if (window.UI && typeof UI.bindPressAction === "function") {
+        UI.bindPressAction(fileButton, openFilePicker);
+      } else {
+        fileButton.addEventListener("click", openFilePicker);
+      }
     }
 
     // 文件选择（支持多文件）

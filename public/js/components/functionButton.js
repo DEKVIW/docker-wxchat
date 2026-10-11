@@ -42,17 +42,19 @@ const FunctionButton = {
   // 绑定事件
   bindEvents() {
     if (this.elements.functionButton) {
-      // 点击功能按钮直接弹出菜单
-      this.elements.functionButton.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+      const showMenu = () => {
         if (
           window.FunctionMenu &&
           typeof window.FunctionMenu.show === "function"
         ) {
           window.FunctionMenu.show();
         }
-      });
+      };
+      if (window.UI && typeof UI.bindPressAction === "function") {
+        UI.bindPressAction(this.elements.functionButton, showMenu);
+      } else {
+        this.elements.functionButton.addEventListener("click", showMenu);
+      }
     } else {
       console.error("FunctionButton: 无法绑定事件，按钮元素不存在");
     }

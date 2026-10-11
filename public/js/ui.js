@@ -31,10 +31,38 @@ const UI = {
     };
   },
 
+  bindPressAction(button, action) {
+    if (!button || typeof action !== "function") return;
+
+    let touchHandled = false;
+    const isTouchPointer = (event) =>
+      event.pointerType === "touch" || event.pointerType === "pen";
+
+    button.addEventListener(
+      "pointerdown",
+      (event) => {
+        if (!isTouchPointer(event)) return;
+        event.preventDefault();
+        touchHandled = true;
+        action(event);
+      },
+      { passive: false }
+    );
+
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      if (touchHandled) {
+        touchHandled = false;
+        return;
+      }
+      action(event);
+    });
+  },
+
   // 绑定事件
   bindEvents() {
     document.querySelectorAll("[data-ui-action]").forEach((button) => {
-      button.addEventListener("click", () => {
+      this.bindPressAction(button, () => {
         switch (button.dataset.uiAction) {
           case "search":
             if (window.SearchUI) SearchUI.showSearchModal();
@@ -47,6 +75,15 @@ const UI = {
             break;
         }
       });
+    });
+
+    this.bindPressAction(this.elements.sendButton, () => {
+      const form = this.elements.messageForm;
+      if (typeof form.requestSubmit === "function") {
+        form.requestSubmit(this.elements.sendButton);
+      } else if (window.MessageHandler) {
+        MessageHandler.sendMessage();
+      }
     });
 
     // 自动调整文本框高度和切换发送按钮

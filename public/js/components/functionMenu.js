@@ -339,6 +339,10 @@ const FunctionMenu = {
 
     // 绑定事件
     this.bindEmojiPickerEvents(overlay);
+
+    if (messageText) {
+      messageText.blur();
+    }
   },
 
   // 获取表情网格HTML
@@ -659,9 +663,6 @@ const FunctionMenu = {
     }
 
     const messageText = document.getElementById("messageText");
-    if (window.matchMedia("(max-width: 720px)").matches && messageText) {
-      messageText.blur();
-    }
     this.createMenuElement();
     const menu = document.getElementById("functionMenu");
     if (menu) {
@@ -673,6 +674,9 @@ const FunctionMenu = {
       inputContainer.appendChild(menu);
       document.body.classList.add("aux-panel-open");
       menu.classList.add("show");
+      if (window.matchMedia("(max-width: 720px)").matches && messageText) {
+        messageText.blur();
+      }
     }
   },
 
