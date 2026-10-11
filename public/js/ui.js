@@ -7,6 +7,10 @@ const UI = {
   // 消息缓存（用于增量更新）
   messageCache: new Map(),
 
+  // 消息多选状态
+  selectionMode: false,
+  selectedMessageIds: new Set(),
+
   // 记录上一次连接状态
   _lastConnectionStatus: null,
 
@@ -122,6 +126,23 @@ const UI = {
       longPressMessage = null;
     };
 
+    const startLongPress = (messageElement) => {
+      if (!messageElement) return;
+
+      cancelLongPress();
+      longPressMessage = messageElement;
+      longPressTimer = window.setTimeout(() => {
+        if (longPressMessage) {
+          if (this.selectionMode) {
+            this.toggleMessageSelection(longPressMessage);
+          } else {
+            this.openMessageActions(longPressMessage);
+          }
+        }
+        cancelLongPress();
+      }, 550);
+    };
+
     let lastBubbleTouch = null;
     let lastBubbleTouchTime = 0;
 
@@ -165,18 +186,29 @@ const UI = {
         const bubble = event.target.closest(".chat-bubble");
         const messageElement = bubble ? bubble.closest(".chat") : null;
         if (!messageElement) return;
-
-        cancelLongPress();
-        longPressMessage = messageElement;
-        longPressTimer = window.setTimeout(() => {
-          if (longPressMessage) {
-            this.openMessageActions(longPressMessage);
-          }
-          cancelLongPress();
-        }, 550);
+        if (event.target.closest(".message-actions, .message-select-check")) {
+          return;
+        }
+        startLongPress(messageElement);
       },
       { passive: true }
     );
+
+    if (!window.PointerEvent) {
+      messageList.addEventListener(
+        "touchstart",
+        (event) => {
+          const bubble = event.target.closest(".chat-bubble");
+          const messageElement = bubble ? bubble.closest(".chat") : null;
+          if (!messageElement) return;
+          if (event.target.closest(".message-actions, .message-select-check")) {
+            return;
+          }
+          startLongPress(messageElement);
+        },
+        { passive: true }
+      );
+    }
 
     ["pointerup", "pointercancel", "pointermove"].forEach((eventName) => {
       messageList.addEventListener(eventName, cancelLongPress, {
@@ -185,8 +217,38 @@ const UI = {
     });
 
     messageList.addEventListener("click", (event) => {
+      const actionButton = event.target.closest("[data-message-action]");
+      if (actionButton && messageList.contains(actionButton)) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.handleMessageAction(actionButton);
+        return;
+      }
+
+      const mediaAction = event.target.closest("[data-media-action]");
+      const messageElement = event.target.closest(".chat[data-message-id]");
+      if (this.selectionMode && messageElement) {
+        event.preventDefault();
+        this.toggleMessageSelection(messageElement);
+        return;
+      }
+
+      if (mediaAction && messageElement) {
+        event.preventDefault();
+        this.handleMediaAction(mediaAction, messageElement);
+        return;
+      }
+
       if (event.target.closest(".message-actions")) return;
       this.closeMessageActions();
+    });
+
+    document.addEventListener("click", (event) => {
+      const selectionAction = event.target.closest("[data-selection-action]");
+      if (!selectionAction) return;
+
+      event.preventDefault();
+      this.handleSelectionAction(selectionAction.dataset.selectionAction);
     });
 
     document.addEventListener("pointerdown", (event) => {
@@ -239,6 +301,215 @@ const UI = {
       const actions = messageElement.querySelector(".message-actions");
       if (actions) actions.setAttribute("aria-hidden", "true");
     });
+  },
+
+  renderMessageActions(message) {
+    const actions = [];
+    const messageId = this.escapeHtml(String(message.id));
+
+    if (message.type === CONFIG.MESSAGE_TYPES.TEXT) {
+      actions.push(
+        `<button type="button" class="message-action-button" data-message-action="copy" title="复制内容">复制</button>`
+      );
+    }
+
+    if (message.type === CONFIG.MESSAGE_TYPES.FILE) {
+      actions.push(
+        `<button type="button" class="message-action-button" data-message-action="download" title="下载文件">下载</button>`
+      );
+    }
+
+    actions.push(
+      `<button type="button" class="message-action-button" data-message-action="select" title="选择消息">多选</button>`,
+      `<button type="button" class="message-action-button delete-btn" data-message-action="delete" data-message-id="${messageId}" title="删除消息">删除</button>`
+    );
+
+    return `<div class="message-actions" aria-hidden="true">${actions.join(
+      ""
+    )}</div>`;
+  },
+
+  handleMessageAction(button) {
+    const messageElement = button.closest(".chat[data-message-id]");
+    if (!messageElement) return;
+
+    const action = button.dataset.messageAction;
+    const messageId = messageElement.dataset.messageId;
+
+    if (action === "copy") {
+      const textMessage = messageElement.querySelector(".text-message");
+      if (textMessage) this.copyMessageContent(textMessage.id);
+      this.closeMessageActions();
+      return;
+    }
+
+    if (action === "download") {
+      const fileKey = messageElement.dataset.fileKey;
+      const fileName = messageElement.dataset.fileName || "下载文件";
+      if (fileKey) {
+        const progressId = this.createSafeId(fileKey);
+        if (messageElement.dataset.mediaKind === "image") {
+          this.downloadImageWithProgress(fileKey, fileName, progressId);
+        } else {
+          this.downloadFileWithProgress(fileKey, fileName, progressId);
+        }
+      }
+      this.closeMessageActions();
+      return;
+    }
+
+    if (action === "select") {
+      this.enterMessageSelection(messageId);
+      return;
+    }
+
+    if (action === "toggle-select") {
+      this.toggleMessageSelection(messageElement);
+      return;
+    }
+
+    if (action === "delete") {
+      this.deleteMessage(messageId);
+    }
+  },
+
+  handleMediaAction(button, messageElement) {
+    if (button.dataset.mediaAction === "preview-image") {
+      const image = button.closest("img");
+      if (image && image.src) {
+        this.openImageViewer(image.src, image.alt || "图片");
+      }
+      return;
+    }
+
+    if (button.dataset.mediaAction === "play-media") {
+      this.playMediaMessage(messageElement);
+    }
+  },
+
+  enterMessageSelection(messageId) {
+    this.selectionMode = true;
+    this.selectedMessageIds.clear();
+    if (messageId !== undefined && messageId !== null) {
+      this.selectedMessageIds.add(String(messageId));
+    }
+    this.closeMessageActions();
+    document.body.classList.add("message-selection-mode");
+    this.updateMessageSelectionUI();
+  },
+
+  exitMessageSelection() {
+    this.selectionMode = false;
+    this.selectedMessageIds.clear();
+    document.body.classList.remove("message-selection-mode");
+    this.elements.messageList
+      .querySelectorAll(".message-selected")
+      .forEach((element) => element.classList.remove("message-selected"));
+    const toolbar = document.getElementById("messageSelectionToolbar");
+    if (toolbar) toolbar.remove();
+  },
+
+  toggleMessageSelection(messageElement) {
+    if (!messageElement) return;
+    const messageId = String(messageElement.dataset.messageId);
+    if (this.selectedMessageIds.has(messageId)) {
+      this.selectedMessageIds.delete(messageId);
+    } else {
+      this.selectedMessageIds.add(messageId);
+    }
+    this.updateMessageSelectionUI();
+  },
+
+  updateMessageSelectionUI() {
+    const messageList = this.elements.messageList;
+    messageList.querySelectorAll("[data-message-id]").forEach((element) => {
+      const selected = this.selectedMessageIds.has(
+        String(element.dataset.messageId)
+      );
+      element.classList.toggle("message-selected", selected);
+      const check = element.querySelector(".message-select-check");
+      if (check) check.setAttribute("aria-checked", String(selected));
+    });
+
+    let toolbar = document.getElementById("messageSelectionToolbar");
+    if (!toolbar) {
+      toolbar = document.createElement("div");
+      toolbar.id = "messageSelectionToolbar";
+      toolbar.className = "message-selection-toolbar";
+      const chatContainer = document.querySelector(".chat-container");
+      if (!chatContainer) return;
+      chatContainer.appendChild(toolbar);
+    }
+
+    const inputContainer = document.querySelector(".input-container");
+    if (inputContainer) {
+      toolbar.style.bottom = `${Math.ceil(
+        inputContainer.getBoundingClientRect().height
+      )}px`;
+    }
+
+    const selectedCount = this.selectedMessageIds.size;
+    toolbar.innerHTML = `
+      <button type="button" class="selection-toolbar-button" data-selection-action="cancel">取消</button>
+      <strong class="selection-toolbar-count">已选 ${selectedCount} 条</strong>
+      <button type="button" class="selection-toolbar-button" data-selection-action="all">全选</button>
+      <button type="button" class="selection-toolbar-button danger" data-selection-action="delete" ${
+        selectedCount ? "" : "disabled"
+      }>删除</button>
+    `;
+  },
+
+  handleSelectionAction(action) {
+    if (action === "cancel") {
+      this.exitMessageSelection();
+      return;
+    }
+
+    if (action === "all") {
+      const messageIds = Array.from(
+        this.elements.messageList.querySelectorAll("[data-message-id]")
+      ).map((element) => String(element.dataset.messageId));
+      if (messageIds.length === this.selectedMessageIds.size) {
+        this.selectedMessageIds.clear();
+      } else {
+        this.selectedMessageIds = new Set(messageIds);
+      }
+      this.updateMessageSelectionUI();
+      return;
+    }
+
+    if (action === "delete") {
+      this.deleteSelectedMessages();
+    }
+  },
+
+  async deleteSelectedMessages() {
+    const messageIds = Array.from(this.selectedMessageIds);
+    if (messageIds.length === 0) return;
+
+    if (!confirm(`确定删除选中的 ${messageIds.length} 条消息吗？`)) return;
+
+    try {
+      const results = await Promise.allSettled(
+        messageIds.map((messageId) => API.deleteMessage(messageId))
+      );
+      const deletedIds = messageIds.filter(
+        (_, index) => results[index].status === "fulfilled"
+      );
+
+      deletedIds.forEach((messageId) => this.removeMessageFromUI(messageId));
+      this.exitMessageSelection();
+
+      if (deletedIds.length > 0) {
+        this.showSuccess(`已删除 ${deletedIds.length} 条消息`);
+      }
+      if (deletedIds.length !== messageIds.length) {
+        this.showError("部分消息删除失败");
+      }
+    } catch (error) {
+      console.error("批量删除消息失败:", error);
+      this.showError("批量删除消息失败: " + error.message);
+    }
   },
 
   // 自动调整文本框高度
@@ -397,6 +668,14 @@ const UI = {
     messageDiv.className = `chat ${isOwn ? "chat-end" : "chat-start"} fade-in`;
     messageDiv.dataset.messageId = message.id;
     messageDiv.dataset.timestamp = message.timestamp;
+    messageDiv.dataset.messageType = message.type || "text";
+
+    if (message.type === CONFIG.MESSAGE_TYPES.FILE) {
+      messageDiv.dataset.fileKey = message.r2_key || "";
+      messageDiv.dataset.fileName = message.original_name || "";
+      messageDiv.dataset.fileMimeType = message.mime_type || "";
+      messageDiv.dataset.mediaKind = this.getMediaKind(message);
+    }
 
     if (message.type === CONFIG.MESSAGE_TYPES.TEXT) {
       messageDiv.innerHTML = this.renderTextMessageContent(
@@ -427,6 +706,11 @@ const UI = {
         );
       }
     }
+
+    messageDiv.insertAdjacentHTML(
+      "afterbegin",
+      `<button type="button" class="message-select-check" data-message-action="toggle-select" role="checkbox" aria-checked="false" aria-label="选择消息"><span></span></button>`
+    );
 
     return messageDiv;
   },
@@ -484,16 +768,15 @@ const UI = {
     const toggleButton = hasMarkdown
       ? `<button class="markdown-toggle" onclick="UI.toggleMarkdownView('${messageId}')" title="切换源码/渲染视图">📝</button>`
       : "";
-    const copyButton = `<button type=\"button\" class=\"message-action-button copy-btn\" onclick=\"UI.copyMessageContent('${messageId}')\" title=\"复制内容\">复制</button>`;
-    const deleteButton = `<button type=\"button\" class=\"message-action-button delete-btn\" onclick=\"UI.deleteMessage('${message.id}')\" title=\"删除消息\">删除</button>`;
-
     return `<div class="chat-bubble"><div class="${textMessageClass}" id="${messageId}" data-original="${message.content.replace(
       /"/g,
       "&quot;"
     )}" data-rendered="${displayContent.replace(
       /"/g,
       "&quot;"
-    )}" data-is-rendered="${hasMarkdown ? "true" : "false"}">${displayContent}${toggleButton}</div></div><div class="message-actions" aria-hidden="true">${copyButton}${deleteButton}</div><div class="chat-time"><span>${deviceName}</span><span class="message-time">${time}</span></div>`;
+    )}" data-is-rendered="${hasMarkdown ? "true" : "false"}">${displayContent}${toggleButton}</div></div>${this.renderMessageActions(
+      message
+    )}<div class="chat-time"><span>${deviceName}</span><span class="message-time">${time}</span></div>`;
   },
 
   // 新增复制逻辑
@@ -570,112 +853,93 @@ const UI = {
     }">${displayContent}${toggleButton}</div></div><div class="message-meta"><span>${deviceName}</span><span class="message-time">${time}</span></div></div>`;
   },
 
+  getMediaKind(message) {
+    const mimeType = String(message.mime_type || "").toLowerCase();
+    const fileName = String(message.original_name || "").toLowerCase();
+    const extension = Utils.getFileExtension(fileName);
+
+    if (
+      mimeType.startsWith("image/") ||
+      ["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"].includes(
+        extension
+      )
+    ) {
+      return "image";
+    }
+    if (
+      mimeType.startsWith("video/") ||
+      ["mp4", "webm", "mov", "avi", "mkv", "wmv"].includes(extension)
+    ) {
+      return "video";
+    }
+    if (
+      mimeType.startsWith("audio/") ||
+      ["mp3", "wav", "m4a", "aac", "flac", "ogg"].includes(extension)
+    ) {
+      return "audio";
+    }
+    return "file";
+  },
+
   // 渲染文件消息内容
   renderFileMessageContent(message, deviceName, time) {
+    const kind = this.getMediaKind(message);
     const fileIcon = Utils.getFileIcon(
       message.mime_type,
       message.original_name
     );
     const fileSize = Utils.formatFileSize(message.file_size);
-    const isImage = Utils.isImageFile(message.mime_type);
+    const safeId = this.createSafeId(message.r2_key || message.id);
+    const fileName = this.escapeHtml(message.original_name || "未命名文件");
+    const downloadProgress = `<div class="download-progress media-download-progress" id="progress-${safeId}">
+      <div class="download-progress-bar"><div class="download-progress-fill"></div></div>
+      <div class="download-progress-info"><div class="download-progress-text">准备下载...</div><div class="download-progress-speed" id="speed-${safeId}"></div></div>
+    </div>`;
+    let content = "";
 
-    let imagePreview = "";
-    if (isImage && message.r2_key) {
-      // 创建安全的ID（移除特殊字符）
-      const safeId = this.createSafeId(message.r2_key);
+    if (kind === "image" && message.r2_key) {
       const imageId = `img-${safeId}`;
-
-      imagePreview = `<div class="image-preview" id="preview-${safeId}">
-                <div class="image-loading" id="loading-${safeId}">
-                    <div class="loading-spinner">⏳</div>
-                    <span>加载图片中...</span>
-                </div>
-                <img id="${imageId}" alt="${this.escapeHtml(
-        message.original_name
-      )}" style="display: none;" />
-                <div class="image-download-progress" id="img-progress-${safeId}">
-                    <div class="image-download-progress-bar">
-                        <div class="image-download-progress-fill"></div>
-                    </div>
-                    <div class="image-download-progress-info">
-                        <div class="image-download-progress-text">准备下载...</div>
-                        <div class="image-download-progress-speed" id="img-speed-${safeId}"></div>
-                    </div>
-                </div>
-                <div class="image-error" id="error-${safeId}" style="display: none;">
-                    <span>🖼️ 图片加载失败</span>
-                    <button onclick="UI.retryLoadImage('${
-                      message.r2_key
-                    }', '${safeId}')" class="retry-btn">重试</button>
-                </div>
-            </div>`;
-
-      // 标记需要异步加载图片（在DOM插入后执行）
-      message._needsImageLoad = { r2Key: message.r2_key, safeId: safeId };
+      content = `<div class="media-message media-image-message" data-media-kind="image">
+        <div class="image-preview" id="preview-${safeId}">
+          <div class="image-loading" id="loading-${safeId}">
+            <div class="loading-spinner">⏳</div><span>加载图片中...</span>
+          </div>
+          <img id="${imageId}" data-media-action="preview-image" alt="${fileName}" style="display:none;" />
+          <div class="image-download-progress" id="img-progress-${safeId}">
+            <div class="image-download-progress-bar"><div class="image-download-progress-fill"></div></div>
+            <div class="image-download-progress-info"><div class="image-download-progress-text">准备下载...</div><div class="image-download-progress-speed" id="img-speed-${safeId}"></div></div>
+          </div>
+          <div class="image-error" id="error-${safeId}" style="display:none;">
+            <span>🖼️ 图片加载失败</span>
+            <button onclick="UI.retryLoadImage('${message.r2_key}', '${safeId}')" class="retry-btn">重试</button>
+          </div>
+        </div>
+      </div>`;
+      message._needsImageLoad = { r2Key: message.r2_key, safeId };
+    } else if (kind === "video") {
+      content = `<div class="media-message media-video-message" data-media-kind="video">
+        <div class="media-video-stage">
+          <div class="media-video-placeholder"><button type="button" class="media-video-trigger" data-media-action="play-media" aria-label="播放视频">▶</button><span>视频 · ${fileName}</span></div>
+          <div class="media-playback"></div>
+          ${downloadProgress}
+        </div>
+      </div>`;
+    } else if (kind === "audio") {
+      content = `<div class="media-message media-audio-message" data-media-kind="audio">
+        <div class="media-audio-card"><button type="button" class="media-audio-trigger" data-media-action="play-media" aria-label="播放音频">▶</button><div class="media-audio-copy"><strong>${fileName}</strong><span>${fileSize}</span></div><div class="media-playback"></div>${downloadProgress}</div>
+      </div>`;
+    } else {
+      content = `<div class="file-message file-card"><div class="file-card-icon">${fileIcon}</div><div class="file-details"><div class="file-name">${fileName}</div><div class="file-size">${fileSize}</div></div></div>${downloadProgress}`;
     }
 
-    return `<div class="chat-bubble"><div class="file-message"><div class="file-info"><div class="file-icon">${fileIcon}</div><div class="file-details"><div class="file-name">${this.escapeHtml(
-      message.original_name
-    )}</div><div class="file-size">${fileSize}</div></div></div><div class="download-progress" id="progress-${this.createSafeId(
-      message.r2_key
-    )}"><div class="download-progress-bar"><div class="download-progress-fill"></div></div><div class="download-progress-info"><div class="download-progress-text">准备下载...</div><div class="download-progress-speed" id="speed-${this.createSafeId(
-      message.r2_key
-    )}"></div></div></div><div class="file-actions"><button class="download-btn" onclick="UI.downloadFileWithProgress('${
-      message.r2_key
-    }', '${this.escapeHtml(message.original_name)}', '${this.createSafeId(
-      message.r2_key
-    )}')">⬇️ 下载</button><button class="delete-btn" onclick="UI.deleteMessage('${
-      message.id
-    }')" title="删除消息">🗑️ 删除</button></div>${imagePreview}</div></div>
-    <div class="chat-time"><span>${deviceName}</span><span class="message-time">${time}</span></div>`;
+    return `<div class="chat-bubble media-bubble media-bubble-${kind}">${content}</div>${this.renderMessageActions(
+      message
+    )}<div class="chat-time"><span>${deviceName}</span><span class="message-time">${time}</span></div>`;
   },
 
   // 渲染文件消息（保留用于兼容性）
   renderFileMessage(message, isOwn, deviceName, time) {
-    const fileIcon = Utils.getFileIcon(
-      message.mime_type,
-      message.original_name
-    );
-    const fileSize = Utils.formatFileSize(message.file_size);
-    const isImage = Utils.isImageFile(message.mime_type);
-
-    let imagePreview = "";
-    if (isImage) {
-      // 创建安全的ID（移除特殊字符）
-      const safeId = this.createSafeId(message.r2_key);
-      const imageId = `img-${safeId}`;
-
-      imagePreview = `<div class="image-preview" id="preview-${safeId}">
-                <div class="image-loading" id="loading-${safeId}">
-                    <div class="loading-spinner">⏳</div>
-                    <span>加载图片中...</span>
-                </div>
-                <img id="${imageId}" alt="${this.escapeHtml(
-        message.original_name
-      )}" style="display: none;" />
-                <div class="image-error" id="error-${safeId}" style="display: none;">
-                    <span>🖼️ 图片加载失败</span>
-                    <button onclick="UI.retryLoadImage('${
-                      message.r2_key
-                    }', '${safeId}')" class="retry-btn">重试</button>
-                </div>
-            </div>`;
-
-      // 标记需要异步加载图片（在DOM插入后执行）
-      message._needsImageLoad = { r2Key: message.r2_key, safeId: safeId };
-    }
-
-    return `<div class="message ${
-      isOwn ? "own" : "other"
-    } fade-in"><div class="message-content"><div class="file-message"><div class="file-info"><div class="file-icon">${fileIcon}</div><div class="file-details"><div class="file-name">${this.escapeHtml(
-      message.original_name
-    )}</div><div class="file-size">${fileSize}</div></div></div><div class="file-actions"><button class="download-btn" onclick="UI.downloadFileWithProgress('${
-      message.r2_key
-    }', '${this.escapeHtml(message.original_name)}', '${this.createSafeId(
-      message.r2_key
-    )}')">⬇️ 下载</button><button class="delete-btn" onclick="UI.deleteMessage('${
-      message.id
-    }')" title="删除消息">🗑️ 删除</button></div>${imagePreview}</div></div><div class="message-meta"><span>${deviceName}</span><span class="message-time">${time}</span></div></div>`;
+    return this.renderFileMessageContent(message, deviceName, time);
   },
 
   // 添加新消息到列表（增量方式）
@@ -1275,6 +1539,103 @@ const UI = {
 
     // 重新加载
     await this.loadImageAsync(r2Key, safeId);
+  },
+
+  openImageViewer(src, alt = "图片") {
+    this.closeImageViewer();
+
+    const overlay = document.createElement("div");
+    overlay.className = "media-viewer-overlay";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-label", alt);
+    overlay.innerHTML = `
+      <button type="button" class="media-viewer-close" data-media-viewer-close aria-label="关闭预览">×</button>
+      <img class="media-viewer-image" alt="${this.escapeHtml(alt)}" />
+    `;
+    overlay.querySelector(".media-viewer-image").src = src;
+    overlay.addEventListener("click", (event) => {
+      if (
+        event.target === overlay ||
+        event.target.closest("[data-media-viewer-close]")
+      ) {
+        this.closeImageViewer();
+      }
+    });
+    document.body.appendChild(overlay);
+    document.body.classList.add("media-viewer-open");
+  },
+
+  closeImageViewer() {
+    const viewer = document.querySelector(".media-viewer-overlay");
+    if (viewer) viewer.remove();
+    document.body.classList.remove("media-viewer-open");
+  },
+
+  async playMediaMessage(messageElement) {
+    const kind = messageElement.dataset.mediaKind;
+    if (kind !== "video" && kind !== "audio") return;
+
+    const playback = messageElement.querySelector(".media-playback");
+    const trigger = messageElement.querySelector(
+      ".media-video-trigger, .media-audio-trigger"
+    );
+    if (!playback || !trigger) return;
+
+    const existingMedia = playback.querySelector("video, audio");
+    if (existingMedia) {
+      if (existingMedia.paused) {
+        existingMedia.play().then(
+          () => {
+            trigger.textContent = "暂停";
+          },
+          () => {
+            trigger.textContent = "播放";
+          }
+        );
+      } else {
+        existingMedia.pause();
+        trigger.textContent = "播放";
+      }
+      return;
+    }
+
+    const fileKey = messageElement.dataset.fileKey;
+    if (!fileKey || typeof API.getFileBlobUrl !== "function") return;
+
+    trigger.disabled = true;
+    trigger.textContent = "加载中";
+
+    try {
+      const blobUrl = await API.getFileBlobUrl(fileKey);
+      const media = document.createElement(kind === "video" ? "video" : "audio");
+      media.className = kind === "video" ? "media-video-player" : "media-audio-player";
+      media.controls = true;
+      media.preload = "metadata";
+      if (kind === "video") media.playsInline = true;
+      media.src = blobUrl;
+      playback.appendChild(media);
+      messageElement.classList.add("media-loaded");
+      trigger.disabled = false;
+      trigger.textContent = "播放";
+      media.addEventListener("pause", () => {
+        if (!media.ended) trigger.textContent = "播放";
+      });
+      media.addEventListener("ended", () => {
+        trigger.textContent = "重播";
+      });
+      try {
+        await media.play();
+        trigger.textContent = "暂停";
+      } catch (error) {
+        // 浏览器禁止自动播放时保留已加载的原生控件，等待用户点击播放。
+        trigger.textContent = "播放";
+      }
+    } catch (error) {
+      console.error("媒体播放失败:", error);
+      trigger.disabled = false;
+      trigger.textContent = "重试";
+      this.showError("媒体加载失败");
+    }
   },
 
   // 确保顶部加载指示器存在

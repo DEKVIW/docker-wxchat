@@ -473,6 +473,11 @@ const API = {
 
   // 获取图片blob URL（用于预览）
   async getImageBlobUrl(r2Key) {
+    return this.getFileBlobUrl(r2Key);
+  },
+
+  // 获取需要认证的媒体blob URL
+  async getFileBlobUrl(r2Key) {
     // 检查缓存
     if (this.imageBlobCache.has(r2Key)) {
       return this.imageBlobCache.get(r2Key);
@@ -502,7 +507,7 @@ const API = {
       const response = await fetch(url, config);
 
       if (!response.ok) {
-        throw new Error(`获取图片失败: ${response.status}`);
+        throw new Error(`获取文件失败: ${response.status}`);
       }
 
       // 获取图片blob
@@ -516,7 +521,7 @@ const API = {
 
       return blobUrl;
     } catch (error) {
-      console.error("获取图片blob URL失败:", error);
+      console.error("获取文件blob URL失败:", error);
       throw error;
     }
   },
