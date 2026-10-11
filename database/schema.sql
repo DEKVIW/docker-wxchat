@@ -1,8 +1,22 @@
 -- 微信文件传输助手数据库结构
 
+-- 会话表：旧消息迁移到默认会话
+CREATE TABLE IF NOT EXISTS conversations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    is_default INTEGER NOT NULL DEFAULT 0,
+    is_pinned INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT OR IGNORE INTO conversations (id, name, is_default)
+VALUES (1, '微信传输助手', 1);
+
 -- 消息表
 CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER NOT NULL DEFAULT 1,
     type TEXT NOT NULL CHECK (type IN ('text', 'file', 'ai_response', 'ai_thinking')), -- 消息类型：文本、文件、AI响应、AI思考
     content TEXT, -- 文本消息内容
     file_id INTEGER, -- 关联的文件ID（如果是文件消息）
@@ -13,7 +27,8 @@ CREATE TABLE IF NOT EXISTS messages (
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (file_id) REFERENCES files(id)
+    FOREIGN KEY (file_id) REFERENCES files(id),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id)
 );
 
 -- 文件表
@@ -43,6 +58,7 @@ CREATE TABLE IF NOT EXISTS devices (
 CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_device_id ON messages(device_id);
 CREATE INDEX IF NOT EXISTS idx_messages_type ON messages(type);
+CREATE INDEX IF NOT EXISTS idx_conversations_updated ON conversations(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_files_r2_key ON files(r2_key);
 CREATE INDEX IF NOT EXISTS idx_files_upload_device ON files(upload_device_id);
 CREATE INDEX IF NOT EXISTS idx_devices_last_active ON devices(last_active DESC);

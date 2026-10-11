@@ -1,11 +1,6 @@
 // 功能菜单组件 - 微信风格功能选项弹出层
 // 提供Web端适用的功能选项界面框架
 
-// 引入 Swiper 样式
-// import "swiper/swiper-bundle.min.css";
-// import Swiper from "swiper/bundle";
-// window.Swiper = Swiper;
-
 const FunctionMenu = {
   // 菜单配置 - 微信风格
   menuItems: [
@@ -75,6 +70,7 @@ const FunctionMenu = {
 
   // 组件状态
   isInitialized: false,
+  inputSelection: null,
 
   // 初始化菜单
   init() {
@@ -284,6 +280,23 @@ const FunctionMenu = {
 
   // 显示表情选择器
   showEmojiPicker() {
+    const existingPicker = document.querySelector(".emoji-picker-overlay");
+    if (existingPicker) {
+      this.closeEmojiPicker(existingPicker);
+      return;
+    }
+
+    this.hide();
+
+    const messageText = document.getElementById("messageText");
+    if (messageText) {
+      this.inputSelection = {
+        start: messageText.selectionStart ?? messageText.value.length,
+        end: messageText.selectionEnd ?? messageText.value.length,
+      };
+      messageText.blur();
+    }
+
     // 创建表情选择器弹窗
     const overlay = document.createElement("div");
     overlay.className = "emoji-picker-overlay";
@@ -304,14 +317,17 @@ const FunctionMenu = {
       </div>
     `;
 
-    document.body.appendChild(overlay);
+    const inputContainer = document.querySelector(".input-container");
+    if (!inputContainer) {
+      return;
+    }
 
-    // 禁止页面滚动
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    // 面板和输入行保持同一层级，移动端可以自然占据键盘区域。
+    inputContainer.appendChild(overlay);
+    document.body.classList.add("aux-panel-open");
 
     // 绑定事件
-    this.bindEmojiPickerEvents(overlay, prevOverflow);
+    this.bindEmojiPickerEvents(overlay);
   },
 
   // 获取表情网格HTML
@@ -388,17 +404,17 @@ const FunctionMenu = {
   },
 
   // 绑定表情选择器事件
-  bindEmojiPickerEvents(overlay, prevOverflow) {
+  bindEmojiPickerEvents(overlay) {
     // 关闭按钮
     const closeBtn = overlay.querySelector(".emoji-picker-close");
     closeBtn.addEventListener("click", () => {
-      this.closeEmojiPicker(overlay, prevOverflow);
+      this.closeEmojiPicker(overlay);
     });
 
     // 点击遮罩关闭
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay) {
-        this.closeEmojiPicker(overlay, prevOverflow);
+        this.closeEmojiPicker(overlay);
       }
     });
 
@@ -407,18 +423,23 @@ const FunctionMenu = {
     emojiItems.forEach((item) => {
       item.addEventListener("click", (e) => {
         const emoji = e.target.dataset.emoji;
-        this.insertTextToInput(emoji);
+        this.insertTextToInput(emoji, { focus: false });
         // 不关闭选择器，允许连续选择表情
       });
     });
   },
 
   // 关闭表情选择器
-  closeEmojiPicker(overlay, prevOverflow) {
+  closeEmojiPicker(overlay = document.querySelector(".emoji-picker-overlay")) {
+    if (!overlay) {
+      return;
+    }
+
     if (overlay.parentNode) {
       overlay.parentNode.removeChild(overlay);
     }
-    document.body.style.overflow = prevOverflow;
+    document.body.classList.remove("aux-panel-open");
+    this.inputSelection = null;
   },
 
   // 文件功能
@@ -519,29 +540,7 @@ const FunctionMenu = {
 
   // 聊天记录清理功能
   handleClearChat() {
-    // 复用现有的清理逻辑
-    if (
-      window.MessageHandler &&
-      typeof MessageHandler.handleClearCommand === "function"
-    ) {
-      MessageHandler.handleClearCommand();
-    } else {
-      // 如果MessageHandler未加载，显示提示
-      this.insertTextToInput("🧹 正在初始化清理功能...");
-
-      // 尝试通过输入清理命令来触发
-      setTimeout(() => {
-        const messageText = document.getElementById("messageText");
-        if (messageText) {
-          messageText.value = "/clear-all";
-          // 触发发送消息
-          const sendButton = document.getElementById("sendButton");
-          if (sendButton) {
-            sendButton.click();
-          }
-        }
-      }, 100);
-    }
+    document.dispatchEvent(new CustomEvent("functionMenu:clearChat"));
   },
 
   // PWA管理功能
@@ -604,33 +603,64 @@ const FunctionMenu = {
   },
 
   // 向输入框插入文本
-  insertTextToInput(text) {
+  insertTextToInput(text, options = {}) {
     const messageText = document.getElementById("messageText");
     if (!messageText) return;
 
     const currentValue = messageText.value;
-    const cursorPos = messageText.selectionStart;
+    const savedSelection = this.inputSelection || {};
+    const cursorStart = messageText.selectionStart ?? currentValue.length;
+    const cursorEnd = messageText.selectionEnd ?? cursorStart;
+    const selectionStart = Number.isInteger(savedSelection.start)
+      ? savedSelection.start
+      : cursorStart;
+    const selectionEnd = Number.isInteger(savedSelection.end)
+      ? savedSelection.end
+      : cursorEnd;
 
     const newValue =
-      currentValue.slice(0, cursorPos) + text + currentValue.slice(cursorPos);
+      currentValue.slice(0, selectionStart) +
+      text +
+      currentValue.slice(selectionEnd);
     messageText.value = newValue;
 
     // 设置光标位置
-    const newCursorPos = cursorPos + text.length;
+    const newCursorPos = selectionStart + text.length;
     messageText.setSelectionRange(newCursorPos, newCursorPos);
+    this.inputSelection = { start: newCursorPos, end: newCursorPos };
 
     // 触发input事件以更新UI状态
     messageText.dispatchEvent(new Event("input", { bubbles: true }));
 
-    // 聚焦输入框
-    messageText.focus();
+    if (options.focus !== false) {
+      messageText.focus();
+    }
   },
 
   // 显示菜单
   show() {
+    this.closeEmojiPicker();
+
+    const existingMenu = document.getElementById("functionMenu");
+    if (existingMenu) {
+      this.hide();
+      return;
+    }
+
+    const messageText = document.getElementById("messageText");
+    if (window.matchMedia("(max-width: 720px)").matches && messageText) {
+      messageText.blur();
+    }
     this.createMenuElement();
     const menu = document.getElementById("functionMenu");
     if (menu) {
+      const inputContainer = document.querySelector(".input-container");
+      if (!inputContainer) {
+        menu.remove();
+        return;
+      }
+      inputContainer.appendChild(menu);
+      document.body.classList.add("aux-panel-open");
       menu.classList.add("show");
     }
   },
@@ -640,9 +670,8 @@ const FunctionMenu = {
     const menu = document.getElementById("functionMenu");
     if (menu) {
       menu.remove(); // 彻底移除菜单DOM
-    } else {
-      console.error("FunctionMenu: 无法隐藏菜单，元素不存在");
     }
+    document.body.classList.remove("aux-panel-open");
   },
 
   // 添加自定义菜单项

@@ -33,10 +33,91 @@ const UI = {
 
   // 绑定事件
   bindEvents() {
+    document.querySelectorAll("[data-ui-action]").forEach((button) => {
+      button.addEventListener("click", () => {
+        switch (button.dataset.uiAction) {
+          case "search":
+            if (window.SearchUI) SearchUI.showSearchModal();
+            break;
+          case "emoji":
+            if (window.FunctionMenu) FunctionMenu.handleEmoji();
+            break;
+          case "menu":
+            if (window.FunctionMenu) FunctionMenu.show();
+            break;
+        }
+      });
+    });
+
     // 自动调整文本框高度和切换发送按钮
     this.elements.messageText.addEventListener("input", () => {
       this.autoResizeTextarea();
       this.checkInputAndToggleSendButton();
+    });
+
+    this.elements.messageText.addEventListener("focus", () => {
+      if (window.FunctionMenu) {
+        FunctionMenu.closeEmojiPicker();
+        FunctionMenu.hide();
+      }
+    });
+
+    const messageList = this.elements.messageList;
+    let longPressTimer = null;
+    let longPressMessage = null;
+
+    const cancelLongPress = () => {
+      if (longPressTimer !== null) {
+        window.clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+      longPressMessage = null;
+    };
+
+    messageList.addEventListener("contextmenu", (event) => {
+      const bubble = event.target.closest(".chat-bubble");
+      const messageElement = bubble?.closest(".chat");
+      if (!messageElement) return;
+
+      event.preventDefault();
+      this.openMessageActions(messageElement);
+    });
+
+    messageList.addEventListener(
+      "pointerdown",
+      (event) => {
+        if (event.pointerType !== "touch") return;
+        const bubble = event.target.closest(".chat-bubble");
+        const messageElement = bubble?.closest(".chat");
+        if (!messageElement) return;
+
+        cancelLongPress();
+        longPressMessage = messageElement;
+        longPressTimer = window.setTimeout(() => {
+          if (longPressMessage) {
+            this.openMessageActions(longPressMessage);
+          }
+          cancelLongPress();
+        }, 550);
+      },
+      { passive: true }
+    );
+
+    ["pointerup", "pointercancel", "pointermove"].forEach((eventName) => {
+      messageList.addEventListener(eventName, cancelLongPress, {
+        passive: true,
+      });
+    });
+
+    messageList.addEventListener("click", (event) => {
+      if (event.target.closest(".message-actions")) return;
+      this.closeMessageActions();
+    });
+
+    document.addEventListener("pointerdown", (event) => {
+      if (!event.target.closest(".chat")) {
+        this.closeMessageActions();
+      }
     });
 
     // 监听其他可能改变输入框内容的事件
@@ -64,6 +145,26 @@ const UI = {
 
     // 初始化时检查输入状态
     this.checkInputAndToggleSendButton();
+  },
+
+  openMessageActions(messageElement) {
+    this.closeMessageActions();
+    const actions = messageElement.querySelector(".message-actions");
+    if (!actions) return;
+
+    messageElement.classList.add("message-actions-open");
+    actions.setAttribute("aria-hidden", "false");
+  },
+
+  closeMessageActions() {
+    this.elements.messageList
+      ?.querySelectorAll(".message-actions-open")
+      .forEach((messageElement) => {
+        messageElement.classList.remove("message-actions-open");
+        messageElement
+          .querySelector(".message-actions")
+          ?.setAttribute("aria-hidden", "true");
+      });
   },
 
   // 自动调整文本框高度
@@ -298,26 +399,16 @@ const UI = {
     const toggleButton = hasMarkdown
       ? `<button class="markdown-toggle" onclick="UI.toggleMarkdownView('${messageId}')" title="切换源码/渲染视图">📝</button>`
       : "";
-    // 复制按钮，和内容平级
-    const copyButton = `<button class=\"copy-btn\" onclick=\"UI.copyMessageContent('${messageId}')\" title=\"复制内容\">📋</button>`;
-    // 删除按钮，放在左下角
-    const deleteButton = `<button class=\"delete-btn\" onclick=\"UI.deleteMessage('${message.id}')\" title=\"删除消息\">🗑️</button>`;
+    const copyButton = `<button type=\"button\" class=\"message-action-button copy-btn\" onclick=\"UI.copyMessageContent('${messageId}')\" title=\"复制内容\">复制</button>`;
+    const deleteButton = `<button type=\"button\" class=\"message-action-button delete-btn\" onclick=\"UI.deleteMessage('${message.id}')\" title=\"删除消息\">删除</button>`;
 
-    // 使用DaisyUI的chat-bubble结构
-    return `<div class="chat-bubble">
-        <div class="${textMessageClass}" id="${messageId}" data-original="${message.content.replace(
+    return `<div class="chat-bubble"><div class="${textMessageClass}" id="${messageId}" data-original="${message.content.replace(
       /"/g,
       "&quot;"
     )}" data-rendered="${displayContent.replace(
       /"/g,
       "&quot;"
-    )}" data-is-rendered="${hasMarkdown ? "true" : "false"}">
-            ${displayContent}${toggleButton}
-        </div>
-        ${copyButton}
-        ${deleteButton}
-    </div>
-    <div class="chat-time"><span>${deviceName}</span><span class="message-time">${time}</span></div>`;
+    )}" data-is-rendered="${hasMarkdown ? "true" : "false"}">${displayContent}${toggleButton}</div></div><div class="message-actions" aria-hidden="true">${copyButton}${deleteButton}</div><div class="chat-time"><span>${deviceName}</span><span class="message-time">${time}</span></div>`;
   },
 
   // 新增复制逻辑
@@ -853,6 +944,21 @@ const UI = {
       );
     }
 
+    const headerStatus = document.querySelector(".chat-header-copy > span");
+    const headerStatusLabel = headerStatus?.querySelector(".chat-status-label");
+    const statusLabels = {
+      connected: "已连接",
+      connecting: "连接中...",
+      reconnecting: "重连中...",
+      disconnected: "离线模式",
+      offline: "离线模式",
+    };
+
+    if (headerStatus && headerStatusLabel) {
+      headerStatus.dataset.connectionStatus = status;
+      headerStatusLabel.textContent = statusLabels[status] || "消息与文件互通";
+    }
+
     const isOnline = status === "connected";
     // 只在状态变化时显示"已连接"
     if (isOnline && UI._lastConnectionStatus !== "connected") {
@@ -1251,26 +1357,63 @@ const UI = {
 
   // 从UI中移除消息
   removeMessageFromUI(messageId) {
-    // 查找包含该消息ID的消息元素
-    const messageElement = document.querySelector(
-      `[data-message-id="${messageId}"]`
-    );
+    const normalizedMessageId = String(messageId);
+    const messageList = this.elements.messageList;
+    const messageElement = messageList
+      ? Array.from(messageList.querySelectorAll("[data-message-id]")).find(
+          (element) => element.dataset.messageId === normalizedMessageId
+        )
+      : null;
+
     if (messageElement) {
-      // 添加删除动画
       messageElement.style.transition = "all 0.3s ease";
       messageElement.style.transform = "translateX(-100%)";
       messageElement.style.opacity = "0";
 
-      // 动画完成后移除元素
       setTimeout(() => {
         messageElement.remove();
 
-        // 检查是否还有消息，如果没有则显示空状态
-        const messageList = this.elements.messageList;
-        if (messageList && messageList.children.length === 0) {
+        if (
+          messageList &&
+          messageList.querySelectorAll("[data-message-id]").length === 0
+        ) {
           this.showEmpty("还没有消息，开始聊天吧！");
         }
       }, 300);
+    }
+
+    for (const [cachedId, element] of this.messageCache.entries()) {
+      if (String(cachedId) === normalizedMessageId) {
+        this.messageCache.delete(cachedId);
+        if (element !== messageElement) element.remove();
+      }
+    }
+
+    if (window.MessageHandler) {
+      const previousLength = MessageHandler.lastMessages.length;
+      MessageHandler.lastMessages = MessageHandler.lastMessages.filter(
+        (message) => String(message.id) !== normalizedMessageId
+      );
+      if (MessageHandler.lastMessages.length !== previousLength) {
+        MessageHandler.totalLoadedMessages = Math.max(
+          0,
+          MessageHandler.totalLoadedMessages - 1
+        );
+      }
+
+      if (
+        typeof MessageHandler.getLocalCache === "function" &&
+        typeof MessageHandler.setLocalCache === "function"
+      ) {
+        const cachedMessages = MessageHandler.getLocalCache();
+        if (Array.isArray(cachedMessages)) {
+          MessageHandler.setLocalCache(
+            cachedMessages.filter(
+              (message) => String(message.id) !== normalizedMessageId
+            )
+          );
+        }
+      }
     }
   },
 

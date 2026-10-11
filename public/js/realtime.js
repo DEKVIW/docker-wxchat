@@ -30,9 +30,10 @@ class RealtimeManager {
     try {
       // 获取认证token
       const token = Auth && Auth.getToken() ? Auth.getToken() : "";
+      const conversationId = ConversationManager.currentConversationId();
       const url = `/api/events?deviceId=${encodeURIComponent(
         this.deviceId
-      )}&token=${encodeURIComponent(token)}`;
+      )}&conversationId=${conversationId}&token=${encodeURIComponent(token)}`;
       this.eventSource = new EventSource(url);
 
       // 监听EventSource状态变化
@@ -80,8 +81,10 @@ class RealtimeManager {
       this.eventSource.addEventListener("message", (event) => {
         try {
           const data = JSON.parse(event.data);
-
-          if (data.newMessages > 0) {
+          const conversationIds = data.conversationIds;
+          const includesActiveConversation = !Array.isArray(conversationIds) ||
+            conversationIds.includes(ConversationManager.currentConversationId());
+          if (data.newMessages > 0 && includesActiveConversation) {
             // 有新消息，触发刷新
             this.emit("newMessages", data);
             // 立即加载消息，强制滚动到底部（有新消息时）
@@ -156,6 +159,17 @@ class RealtimeManager {
     this.emit("disconnected");
   }
 
+  refreshConversation() {
+    if (this.eventSource) {
+      this.connect();
+      return;
+    }
+    if (this.longPollingActive) {
+      this.stopLongPolling();
+      this.startLongPolling();
+    }
+  }
+
   // 处理重连逻辑
   handleReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
@@ -216,9 +230,10 @@ class RealtimeManager {
 
     try {
       const lastMessageId = this.getLastMessageId();
+      const conversationId = ConversationManager.currentConversationId();
       const url = `/api/poll?deviceId=${encodeURIComponent(
         this.deviceId
-      )}&lastMessageId=${lastMessageId}&timeout=30`;
+      )}&conversationId=${conversationId}&lastMessageId=${lastMessageId}&timeout=30`;
 
       // 添加认证头
       const headers = Auth ? Auth.addAuthHeader({}) : {};

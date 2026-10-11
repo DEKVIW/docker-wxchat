@@ -1,50 +1,13 @@
 // 搜索API模块 - 封装搜索相关的API调用
 
 const SearchAPI = {
-  // 搜索缓存
-  cache: new Map(),
-  cacheTimeout: 5 * 60 * 1000, // 5分钟缓存
-
-  // 执行搜索（本地优先，后端兜底）
+  // 执行搜索，以服务端完整数据为准
   async search(query, filters = {}) {
     try {
-      // 1. 本地优先搜索
-      if (
-        window.MessageHandler &&
-        typeof MessageHandler.getLocalCache === "function"
-      ) {
-        const localMessages = MessageHandler.getLocalCache();
-        const localResults = localMessages.filter((msg) => {
-          // 支持文本和文件名模糊匹配
-          if (msg.type === "text" && msg.content && msg.content.includes(query))
-            return true;
-          if (
-            msg.type === "file" &&
-            msg.original_name &&
-            msg.original_name.includes(query)
-          )
-            return true;
-          return false;
-        });
-        if (localResults.length > 0) {
-          return { success: true, data: localResults, local: true };
-        }
-      }
-      // 2. 后端兜底
-      // 构建缓存键
-      const cacheKey = this.buildCacheKey(query, filters);
-
-      // 检查缓存
-      if (this.cache.has(cacheKey)) {
-        const cached = this.cache.get(cacheKey);
-        if (Date.now() - cached.timestamp < this.cacheTimeout) {
-          return cached.data;
-        }
-      }
-
       // 构建搜索参数
       const params = new URLSearchParams();
-      params.append("q", query);
+      params.append("q", query.trim());
+      params.append("conversationId", ConversationManager.currentConversationId());
 
       if (filters.type && filters.type !== "all") {
         params.append("type", filters.type);
@@ -91,12 +54,6 @@ const SearchAPI = {
         throw new Error(result.error || "搜索失败");
       }
 
-      // 缓存结果
-      this.cache.set(cacheKey, {
-        data: result,
-        timestamp: Date.now(),
-      });
-
       return result;
     } catch (error) {
       console.error("搜索API错误:", error);
@@ -117,11 +74,13 @@ const SearchAPI = {
 
       // 添加认证头
       const authHeaders = Auth ? Auth.addAuthHeader(headers) : headers;
+      const params = new URLSearchParams({
+        q: query,
+        conversationId: ConversationManager.currentConversationId(),
+      });
 
       const response = await fetch(
-        `${CONFIG.API.BASE_URL}${
-          CONFIG.API.ENDPOINTS.SEARCH_SUGGESTIONS
-        }?q=${encodeURIComponent(query)}`,
+        `${CONFIG.API.BASE_URL}${CONFIG.API.ENDPOINTS.SEARCH_SUGGESTIONS}?${params}`,
         {
           method: "GET",
           headers: authHeaders,
@@ -137,35 +96,6 @@ const SearchAPI = {
     } catch (error) {
       console.error("搜索建议API错误:", error);
       return { success: true, data: [] }; // 静默失败，不影响主要搜索功能
-    }
-  },
-
-  // 构建缓存键
-  buildCacheKey(query, filters) {
-    const parts = [query];
-
-    if (filters.type) parts.push(`type:${filters.type}`);
-    if (filters.timeRange) parts.push(`time:${filters.timeRange}`);
-    if (filters.deviceId) parts.push(`device:${filters.deviceId}`);
-    if (filters.fileType) parts.push(`file:${filters.fileType}`);
-    if (filters.limit) parts.push(`limit:${filters.limit}`);
-    if (filters.offset) parts.push(`offset:${filters.offset}`);
-
-    return parts.join("|");
-  },
-
-  // 清除缓存
-  clearCache() {
-    this.cache.clear();
-  },
-
-  // 清除过期缓存
-  cleanExpiredCache() {
-    const now = Date.now();
-    for (const [key, value] of this.cache.entries()) {
-      if (now - value.timestamp >= this.cacheTimeout) {
-        this.cache.delete(key);
-      }
     }
   },
 
@@ -275,11 +205,6 @@ const SearchAPI = {
     }
   },
 };
-
-// 定期清理过期缓存
-setInterval(() => {
-  SearchAPI.cleanExpiredCache();
-}, 10 * 60 * 1000); // 每10分钟清理一次
 
 // 导出到全局
 if (typeof window !== "undefined") {

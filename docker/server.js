@@ -94,6 +94,65 @@ fs.mkdirSync(UPLOAD_PATH, { recursive: true });
 // 数据库连接
 const db = new sqlite3.Database(DATABASE_PATH);
 
+const initializeDatabase = () =>
+  new Promise((resolve, reject) => {
+    db.run(
+      `CREATE TABLE IF NOT EXISTS conversations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        is_default INTEGER NOT NULL DEFAULT 0,
+        is_pinned INTEGER NOT NULL DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      (error) => {
+        if (error) return reject(error);
+        db.all("PRAGMA table_info(conversations)", (error, conversationColumns) => {
+          if (error) return reject(error);
+          const ensurePinnedColumn = (next) => {
+            if (conversationColumns.some((column) => column.name === "is_pinned")) return next();
+            db.run(
+              "ALTER TABLE conversations ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0",
+              (error) => (error ? reject(error) : next())
+            );
+          };
+          ensurePinnedColumn(() => {
+            db.all("PRAGMA table_info(messages)", (error, columns) => {
+              if (error) return reject(error);
+              const ensureConversationColumn = (next) => {
+                if (columns.some((column) => column.name === "conversation_id")) {
+                  return next();
+                }
+                db.run(
+                  "ALTER TABLE messages ADD COLUMN conversation_id INTEGER REFERENCES conversations(id)",
+                  (error) => (error ? reject(error) : next())
+                );
+              };
+              ensureConversationColumn(() => {
+                db.run(
+                  "INSERT OR IGNORE INTO conversations (id, name, is_default) VALUES (1, '微信传输助手', 1)",
+                  (error) => {
+                    if (error) return reject(error);
+                    db.run(
+                      "UPDATE messages SET conversation_id = 1 WHERE conversation_id IS NULL",
+                      (error) => {
+                        if (error) return reject(error);
+                        db.run(
+                          "CREATE INDEX IF NOT EXISTS idx_messages_conversation_timestamp ON messages(conversation_id, timestamp DESC, id DESC)",
+                          (error) => (error ? reject(error) : resolve())
+                        );
+                      }
+                    );
+                  }
+                );
+              });
+            });
+          });
+        });
+      }
+    );
+  });
+
 // 文件上传配置
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -166,11 +225,121 @@ app.post("/api/auth/logout", (req, res) => {
   res.json({ success: true, message: "登出成功" });
 });
 
+app.get("/api/conversations", authMiddleware, (req, res) => {
+  db.all(
+    `SELECT c.id, c.name, c.is_default, c.is_pinned, c.created_at, c.updated_at,
+      (SELECT CASE WHEN m.type = 'file' THEN f.original_name ELSE m.content END
+       FROM messages m LEFT JOIN files f ON m.file_id = f.id
+       WHERE m.conversation_id = c.id ORDER BY m.id DESC LIMIT 1) AS last_message,
+      (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id) AS message_count
+     FROM conversations c ORDER BY c.is_default DESC, c.is_pinned DESC, c.updated_at DESC, c.id ASC`,
+    (error, rows) => {
+      if (error) return res.status(500).json({ success: false, message: error.message });
+      res.json({ success: true, data: rows });
+    }
+  );
+});
+
+app.post("/api/conversations", authMiddleware, (req, res) => {
+  const name = String(req.body.name || "").trim().slice(0, 40);
+  if (!name) return res.status(400).json({ success: false, message: "会话名称不能为空" });
+  db.run(
+    "INSERT INTO conversations (name, is_default, updated_at) VALUES (?, 0, datetime('now'))",
+    [name],
+    function (error) {
+      if (error) return res.status(500).json({ success: false, message: error.message });
+      res.status(201).json({ success: true, data: { id: this.lastID, name, is_default: 0 } });
+    }
+  );
+});
+
+app.patch("/api/conversations/:id", authMiddleware, (req, res) => {
+  const conversationId = Number(req.params.id);
+  const updates = [];
+  const values = [];
+  if (Object.hasOwn(req.body, "name")) {
+    const name = String(req.body.name || "").trim().slice(0, 40);
+    if (!name) return res.status(400).json({ success: false, message: "会话名称不能为空" });
+    updates.push("name = ?");
+    values.push(name);
+  }
+  if (Object.hasOwn(req.body, "is_pinned")) {
+    updates.push("is_pinned = ?");
+    values.push(req.body.is_pinned ? 1 : 0);
+  }
+  if (!Number.isSafeInteger(conversationId) || conversationId < 1 || !updates.length) {
+    return res.status(400).json({ success: false, message: "会话编号或操作无效" });
+  }
+  updates.push("updated_at = datetime('now')");
+  values.push(conversationId);
+  db.run(
+    `UPDATE conversations SET ${updates.join(", ")} WHERE id = ?`,
+    values,
+    function (error) {
+      if (error) return res.status(500).json({ success: false, message: error.message });
+      if (!this.changes) return res.status(404).json({ success: false, message: "会话不存在" });
+      res.json({ success: true, data: { id: conversationId } });
+    }
+  );
+});
+
+app.delete("/api/conversations/:id", authMiddleware, (req, res) => {
+  const conversationId = Number(req.params.id);
+  if (!Number.isSafeInteger(conversationId) || conversationId < 1) {
+    return res.status(400).json({ success: false, message: "会话编号无效" });
+  }
+  db.get("SELECT id, is_default FROM conversations WHERE id = ?", [conversationId], (lookupError, conversation) => {
+    if (lookupError) return res.status(500).json({ success: false, message: lookupError.message });
+    if (!conversation) return res.status(404).json({ success: false, message: "会话不存在" });
+    if (conversation.is_default) return res.status(400).json({ success: false, message: "默认聊天不可删除" });
+    db.all(
+      "SELECT DISTINCT f.id, f.file_name FROM files f JOIN messages m ON m.file_id = f.id WHERE m.conversation_id = ?",
+      [conversationId],
+      (filesError, files) => {
+        if (filesError) return res.status(500).json({ success: false, message: filesError.message });
+        db.run("DELETE FROM messages WHERE conversation_id = ?", [conversationId], function (deleteError) {
+          if (deleteError) return res.status(500).json({ success: false, message: deleteError.message });
+          const deletedMessages = this.changes;
+          const finishDelete = () => {
+            db.run("DELETE FROM conversations WHERE id = ?", [conversationId], function (conversationError) {
+              if (conversationError) return res.status(500).json({ success: false, message: conversationError.message });
+              res.json({ success: true, data: { deletedMessages, deletedFiles } });
+            });
+          };
+          let deletedFiles = 0;
+          const cleanupFile = (index) => {
+            if (index >= files.length) return finishDelete();
+            const file = files[index];
+            db.get("SELECT COUNT(*) AS count FROM messages WHERE file_id = ?", [file.id], (countError, result) => {
+              if (countError) return res.status(500).json({ success: false, message: countError.message });
+              if (result.count > 0) return cleanupFile(index + 1);
+              db.run("DELETE FROM files WHERE id = ?", [file.id], function (fileError) {
+                if (fileError) return res.status(500).json({ success: false, message: fileError.message });
+                if (this.changes > 0) {
+                  deletedFiles += 1;
+                  fs.unlink(path.join(UPLOAD_PATH, file.file_name), () => cleanupFile(index + 1));
+                } else {
+                  cleanupFile(index + 1);
+                }
+              });
+            });
+          };
+          cleanupFile(0);
+        });
+      }
+    );
+  });
+});
+
 // 获取消息列表
 app.get("/api/messages", authMiddleware, (req, res) => {
   // 支持 limit=0 表示不限制，或 limit=100000 表示最大限制
   let limit = parseInt(req.query.limit);
   const offset = parseInt(req.query.offset) || 0;
+  const conversationId = Number(req.query.conversationId || 1);
+  if (!Number.isSafeInteger(conversationId) || conversationId < 1) {
+    return res.status(400).json({ success: false, message: "会话编号无效" });
+  }
 
   // 如果 limit 为 0 或未指定，使用默认值 5000
   // 如果 limit 大于 100000，限制为 100000
@@ -184,11 +353,12 @@ app.get("/api/messages", authMiddleware, (req, res) => {
     SELECT m.*, f.original_name, f.file_size, f.mime_type, f.r2_key 
     FROM messages m 
     LEFT JOIN files f ON m.file_id = f.id 
+    WHERE m.conversation_id = ?
     ORDER BY m.timestamp ASC 
     LIMIT ? OFFSET ?
   `;
 
-  db.all(query, [limit, offset], (err, rows) => {
+  db.all(query, [conversationId, limit, offset], (err, rows) => {
     if (err) {
       res.status(500).json({ success: false, message: err.message });
       return;
@@ -200,6 +370,11 @@ app.get("/api/messages", authMiddleware, (req, res) => {
 // 发送消息
 app.post("/api/messages", authMiddleware, (req, res) => {
   const { content, type = "text", deviceId } = req.body;
+  const conversationId = Number(req.body.conversationId || 1);
+
+  if (!Number.isSafeInteger(conversationId) || conversationId < 1) {
+    return res.status(400).json({ success: false, message: "会话编号无效" });
+  }
 
   if (!content && type === "text") {
     return res
@@ -208,16 +383,18 @@ app.post("/api/messages", authMiddleware, (req, res) => {
   }
 
   const query = `
-    INSERT INTO messages (type, content, device_id, timestamp, created_at, updated_at) 
-    VALUES (?, ?, ?, datetime('now'), datetime('now'), datetime('now'))
+    INSERT INTO messages (conversation_id, type, content, device_id, timestamp, created_at, updated_at) 
+    VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'))
   `;
 
-  db.run(query, [type, content, deviceId || req.user.deviceId], function (err) {
-    if (err) {
-      res.status(500).json({ success: false, message: err.message });
-      return;
-    }
-    res.json({ success: true, messageId: this.lastID });
+  db.get("SELECT id FROM conversations WHERE id = ?", [conversationId], (lookupError, row) => {
+    if (lookupError) return res.status(500).json({ success: false, message: lookupError.message });
+    if (!row) return res.status(404).json({ success: false, message: "会话不存在" });
+    db.run(query, [conversationId, type, content, deviceId || req.user.deviceId], function (err) {
+      if (err) return res.status(500).json({ success: false, message: err.message });
+      db.run("UPDATE conversations SET updated_at = datetime('now') WHERE id = ?", [conversationId]);
+      res.json({ success: true, messageId: this.lastID });
+    });
   });
 });
 
@@ -233,6 +410,12 @@ app.post(
 
     const { originalname, filename, size, mimetype } = req.file;
     const deviceId = req.user.deviceId;
+    const conversationId = Number(req.body.conversationId || 1);
+
+    if (!Number.isSafeInteger(conversationId) || conversationId < 1) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ success: false, message: "会话编号无效" });
+    }
 
     // 插入文件记录
     const fileQuery = `
@@ -240,7 +423,15 @@ app.post(
     VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
   `;
 
-    db.run(
+    db.get("SELECT id FROM conversations WHERE id = ?", [conversationId], (lookupError, conversation) => {
+      if (lookupError || !conversation) {
+        fs.unlink(req.file.path, () => {});
+        return res.status(lookupError ? 500 : 404).json({
+          success: false,
+          message: lookupError ? lookupError.message : "会话不存在",
+        });
+      }
+      db.run(
       fileQuery,
       [originalname, filename, size, mimetype, filename, deviceId],
       function (err) {
@@ -253,13 +444,13 @@ app.post(
 
         // 插入消息记录
         const messageQuery = `
-      INSERT INTO messages (type, content, file_id, device_id, timestamp, created_at, updated_at) 
-      VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'))
+      INSERT INTO messages (conversation_id, type, content, file_id, device_id, timestamp, created_at, updated_at) 
+      VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'))
     `;
 
         db.run(
           messageQuery,
-          ["file", originalname, fileId, deviceId],
+          [conversationId, "file", originalname, fileId, deviceId],
           function (err) {
             if (err) {
               res.status(500).json({ success: false, message: err.message });
@@ -276,10 +467,12 @@ app.post(
                 r2Key: filename, // 添加r2_key字段
               },
             });
+            db.run("UPDATE conversations SET updated_at = datetime('now') WHERE id = ?", [conversationId]);
           }
         );
       }
-    );
+      );
+    });
   }
 );
 
@@ -354,6 +547,7 @@ app.get("/api/search", authMiddleware, (req, res) => {
     timeRange,
     deviceId,
     fileType,
+    conversationId = "1",
     limit = 20,
     offset = 0,
   } = req.query;
@@ -368,9 +562,9 @@ app.get("/api/search", authMiddleware, (req, res) => {
     SELECT m.*, f.original_name, f.file_size, f.mime_type, f.r2_key 
     FROM messages m 
     LEFT JOIN files f ON m.file_id = f.id 
-    WHERE (m.content LIKE ? OR f.original_name LIKE ?)
+    WHERE m.conversation_id = ? AND (m.content LIKE ? OR f.original_name LIKE ?)
   `;
-  const params = [`%${q}%`, `%${q}%`];
+  const params = [Number(conversationId), `%${q}%`, `%${q}%`];
 
   // 添加过滤条件
   if (type && type !== "all") {
@@ -409,6 +603,7 @@ app.get("/api/search", authMiddleware, (req, res) => {
 // 搜索建议
 app.get("/api/search/suggestions", authMiddleware, (req, res) => {
   const { q } = req.query;
+  const conversationId = Number(req.query.conversationId || 1);
 
   if (!q || q.trim().length < 2) {
     return res.json({ success: true, data: [] });
@@ -417,12 +612,12 @@ app.get("/api/search/suggestions", authMiddleware, (req, res) => {
   const query = `
     SELECT DISTINCT content 
     FROM messages 
-    WHERE type = 'text' AND content LIKE ? 
+    WHERE conversation_id = ? AND type = 'text' AND content LIKE ? 
     ORDER BY timestamp DESC 
     LIMIT 10
   `;
 
-  db.all(query, [`%${q}%`], (err, rows) => {
+  db.all(query, [conversationId, `%${q}%`], (err, rows) => {
     if (err) {
       res.status(500).json({ success: false, message: err.message });
       return;
@@ -432,6 +627,47 @@ app.get("/api/search/suggestions", authMiddleware, (req, res) => {
 });
 
 // 清理所有数据
+app.delete("/api/conversations/:id/messages", authMiddleware, (req, res) => {
+  const conversationId = Number(req.params.id);
+  if (!Number.isSafeInteger(conversationId) || conversationId < 1) {
+    return res.status(400).json({ success: false, message: "会话编号无效" });
+  }
+
+  db.get("SELECT id FROM conversations WHERE id = ?", [conversationId], (lookupError, conversation) => {
+    if (lookupError) return res.status(500).json({ success: false, message: lookupError.message });
+    if (!conversation) return res.status(404).json({ success: false, message: "会话不存在" });
+    db.all(
+      "SELECT DISTINCT f.id, f.file_name FROM files f JOIN messages m ON m.file_id = f.id WHERE m.conversation_id = ?",
+      [conversationId],
+      (filesError, files) => {
+        if (filesError) return res.status(500).json({ success: false, message: filesError.message });
+        db.run("DELETE FROM messages WHERE conversation_id = ?", [conversationId], function (deleteError) {
+          if (deleteError) return res.status(500).json({ success: false, message: deleteError.message });
+          const deletedMessages = this.changes;
+          const cleanupFile = (index) => {
+            if (index >= files.length) {
+              db.run("UPDATE conversations SET updated_at = datetime('now') WHERE id = ?", [conversationId]);
+              return res.json({ success: true, data: { deletedMessages } });
+            }
+            const file = files[index];
+            db.get("SELECT COUNT(*) AS count FROM messages WHERE file_id = ?", [file.id], (countError, result) => {
+              if (countError || result.count > 0) return cleanupFile(index + 1);
+              db.run("DELETE FROM files WHERE id = ?", [file.id], function (fileError) {
+                if (!fileError && this.changes > 0) {
+                  fs.unlink(path.join(UPLOAD_PATH, file.file_name), () => cleanupFile(index + 1));
+                } else {
+                  cleanupFile(index + 1);
+                }
+              });
+            });
+          };
+          cleanupFile(0);
+        });
+      }
+    );
+  });
+});
+
 app.post("/api/clear-all", authMiddleware, (req, res) => {
   const { confirmCode } = req.body;
 
@@ -512,16 +748,24 @@ app.get("/api/events", authMiddleware, (req, res) => {
   res.write("event: connection\ndata: connected\n\n");
 
   // 将客户端添加到全局列表
-  const client = { res, deviceId: req.user.deviceId };
+  const client = {
+    res,
+    deviceId: req.user.deviceId,
+    conversationId: Number(req.query.conversationId || 1),
+  };
   global.sseClients.push(client);
 
   // 定期检查新消息
   const checkInterval = setInterval(() => {
-    db.get(
-      "SELECT COUNT(*) as count FROM messages WHERE timestamp > datetime('now', '-10 seconds')",
-      (err, row) => {
-        if (row && row.count > 0) {
-          res.write(`event: message\ndata: {"newMessages": ${row.count}}\n\n`);
+    db.all(
+      "SELECT id FROM conversations WHERE updated_at > datetime('now', '-10 seconds')",
+      (err, rows) => {
+        if (rows && rows.length > 0) {
+          const conversationIds = rows.map((row) => row.id);
+          res.write(`event: message\ndata: ${JSON.stringify({
+            newMessages: conversationIds.length,
+            conversationIds,
+          })}\n\n`);
         }
       }
     );
@@ -547,14 +791,15 @@ app.get("/api/events", authMiddleware, (req, res) => {
 // 长轮询接口（SSE降级方案）
 app.get("/api/poll", authMiddleware, (req, res) => {
   const { lastMessageId = "0", timeout = 30 } = req.query;
+  const conversationId = Number(req.query.conversationId || 1);
 
   const startTime = Date.now();
   const maxWaitTime = parseInt(timeout) * 1000;
 
   const checkMessages = () => {
     db.get(
-      "SELECT COUNT(*) as count FROM messages WHERE id > ?",
-      [lastMessageId],
+      "SELECT COUNT(*) as count FROM messages WHERE conversation_id = ? AND id > ?",
+      [conversationId, lastMessageId],
       (err, row) => {
         if (err) {
           return res.status(500).json({ success: false, message: err.message });
@@ -585,13 +830,17 @@ app.get("/api/poll", authMiddleware, (req, res) => {
 // 删除单条消息
 app.delete("/api/messages/:id", authMiddleware, (req, res) => {
   const messageId = req.params.id;
+  const conversationId = Number(req.query.conversationId || 1);
 
   if (!messageId) {
     return res.status(400).json({ success: false, message: "消息ID不能为空" });
   }
 
   // 先查询消息是否存在以及是否为文件消息
-  db.get("SELECT * FROM messages WHERE id = ?", [messageId], (err, message) => {
+  db.get(
+    "SELECT * FROM messages WHERE id = ? AND conversation_id = ?",
+    [messageId, conversationId],
+    (err, message) => {
     if (err) {
       return res.status(500).json({ success: false, message: err.message });
     }
@@ -962,6 +1211,7 @@ app.post(
 // AI消息存储接口
 app.post("/api/ai/message", authMiddleware, (req, res) => {
   const { content, deviceId = "ai-system", type = "ai_response" } = req.body;
+  const conversationId = Number(req.body.conversationId || 1);
 
   if (!content) {
     return res.status(400).json({
@@ -971,23 +1221,26 @@ app.post("/api/ai/message", authMiddleware, (req, res) => {
   }
 
   const query = `
-    INSERT INTO messages (type, content, device_id, timestamp, created_at, updated_at) 
-    VALUES (?, ?, ?, datetime('now'), datetime('now'), datetime('now'))
+    INSERT INTO messages (conversation_id, type, content, device_id, timestamp, created_at, updated_at) 
+    VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'))
   `;
 
-  db.run(query, [type, content, deviceId], function (err) {
-    if (err) {
-      res.status(500).json({ success: false, message: err.message });
-      return;
-    }
-    res.json({
-      success: true,
-      data: {
-        id: this.lastID,
-        messageId: this.lastID,
-      },
+  db.get("SELECT id FROM conversations WHERE id = ?", [conversationId], (lookupError, conversation) => {
+    if (lookupError) return res.status(500).json({ success: false, message: lookupError.message });
+    if (!conversation) return res.status(404).json({ success: false, message: "会话不存在" });
+    db.run(query, [conversationId, type, content, deviceId], function (err) {
+      if (err) return res.status(500).json({ success: false, message: err.message });
+      db.run("UPDATE conversations SET updated_at = datetime('now') WHERE id = ?", [conversationId]);
+      res.json({
+        success: true,
+        data: {
+          id: this.lastID,
+          messageId: this.lastID,
+        },
+      });
     });
-  });
+    }
+  );
 });
 
 // 配置接口 - 返回前端需要的配置信息（需要认证）
@@ -1020,12 +1273,18 @@ app.get("/api/config", authMiddleware, (req, res) => {
   });
 });
 
-// 启动服务器
-app.listen(PORT, () => {
-  console.log(`🚀 微信文件传输助手 Docker版本运行在端口 ${PORT}`);
-  console.log(`📁 数据库路径: ${DATABASE_PATH}`);
-  console.log(`📁 上传路径: ${UPLOAD_PATH}`);
-  console.log(`🔐 访问密码: ${ACCESS_PASSWORD}`);
-  console.log(`⏰ 会话过期时间: ${SESSION_EXPIRE_HOURS}小时`);
-  console.log(`📦 最大文件大小: ${MAX_FILE_SIZE_MB}MB`);
-});
+// 启动服务器前幂等迁移旧 SQLite 数据库
+initializeDatabase()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`🚀 微信文件传输助手 Docker版本运行在端口 ${PORT}`);
+      console.log(`📁 数据库路径: ${DATABASE_PATH}`);
+      console.log(`📁 上传路径: ${UPLOAD_PATH}`);
+      console.log(`⏰ 会话过期时间: ${SESSION_EXPIRE_HOURS}小时`);
+      console.log(`📦 最大文件大小: ${MAX_FILE_SIZE_MB}MB`);
+    });
+  })
+  .catch((error) => {
+    console.error("数据库初始化失败，服务器未启动:", error);
+    process.exit(1);
+  });

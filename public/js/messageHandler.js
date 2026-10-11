@@ -9,6 +9,8 @@ const MessageHandler = {
 
   // 加载状态（防止重复请求）
   isLoading: false,
+  loadingConversationId: null,
+  loadGeneration: 0,
   isLoadingMore: false,
 
   // 分页状态
@@ -23,7 +25,7 @@ const MessageHandler = {
   // 本地缓存相关
   getLocalCache() {
     try {
-      const cache = localStorage.getItem("wxchat_messages");
+      const cache = localStorage.getItem(this.localCacheKey());
       return cache ? JSON.parse(cache) : [];
     } catch (e) {
       return [];
@@ -31,11 +33,30 @@ const MessageHandler = {
   },
   setLocalCache(messages) {
     try {
-      localStorage.setItem("wxchat_messages", JSON.stringify(messages));
+      localStorage.setItem(this.localCacheKey(), JSON.stringify(messages));
     } catch (e) {}
   },
   clearLocalCache() {
-    localStorage.removeItem("wxchat_messages");
+    localStorage.removeItem(this.localCacheKey());
+  },
+  localCacheKey() {
+    const conversationId =
+      typeof ConversationManager === "undefined"
+        ? 1
+        : ConversationManager.currentConversationId();
+    return `wxchat_messages_${conversationId}`;
+  },
+
+  switchConversation(conversationId) {
+    this.loadGeneration += 1;
+    this.lastMessages = [];
+    this.totalLoadedMessages = 0;
+    this.hasMoreMessages = true;
+    this.isLoadingMore = false;
+    this.clearLocalCache();
+    UI.showEmpty("正在载入聊天记录…");
+    this.updateInfiniteScrollState();
+    this.loadMessages(true, true);
   },
 
   // 初始化消息处理
@@ -103,12 +124,14 @@ const MessageHandler = {
 
   // 加载消息列表
   async loadMessages(forceScroll = false, resetMessages = false) {
-    // 防止重复请求
-    if (this.isLoading) {
+    const conversationId = ConversationManager.currentConversationId();
+    const loadGeneration = this.loadGeneration;
+    if (this.isLoading && this.loadingConversationId === conversationId) {
       return;
     }
 
     this.isLoading = true;
+    this.loadingConversationId = conversationId;
 
     try {
       // 检查用户是否在底部（在DOM更新前检查，用于决定是否保留已加载消息）
@@ -118,7 +141,12 @@ const MessageHandler = {
       // 如果用户不在底部且不是首次加载且不是强制重置，只检查新消息，不重置列表
       if (!isFirstLoad && !resetMessages && !userAtBottom && !forceScroll) {
         // 获取完整消息列表（但只追加新消息，不重置）
-        const allMessages = await API.getMessages(CONFIG.UI.MESSAGE_LOAD_LIMIT);
+        const allMessages = await API.getMessages(
+          CONFIG.UI.MESSAGE_LOAD_LIMIT,
+          0,
+          conversationId
+        );
+        if (loadGeneration !== this.loadGeneration) return;
         const lastMessageId =
           this.lastMessages[this.lastMessages.length - 1]?.id;
 
@@ -149,12 +177,16 @@ const MessageHandler = {
           }
         }
 
-        this.isLoading = false;
         return;
       }
 
       // 首次加载或用户要求重置：加载完整消息列表
-      const messages = await API.getMessages(CONFIG.UI.MESSAGE_LOAD_LIMIT);
+      const messages = await API.getMessages(
+        CONFIG.UI.MESSAGE_LOAD_LIMIT,
+        0,
+        conversationId
+      );
+      if (loadGeneration !== this.loadGeneration) return;
 
       // 检测消息变化
       const hasChanges = this.detectMessageChanges(messages);
@@ -183,8 +215,10 @@ const MessageHandler = {
 
         // 启动或停止无限滚动监听
         this.updateInfiniteScrollState();
+        ConversationManager.updatePreview(conversationId, messages.at(-1));
       }
     } catch (error) {
+      if (loadGeneration !== this.loadGeneration) return;
       console.error("加载消息失败:", error);
 
       // 如果是首次加载失败，静默处理，显示空状态
@@ -195,7 +229,10 @@ const MessageHandler = {
         UI.showError(error.message || CONFIG.ERRORS.LOAD_MESSAGES_FAILED);
       }
     } finally {
-      this.isLoading = false;
+      if (loadGeneration === this.loadGeneration) {
+        this.isLoading = false;
+        this.loadingConversationId = null;
+      }
     }
   },
 
@@ -254,6 +291,8 @@ const MessageHandler = {
     }
 
     this.isLoadingMore = true;
+    const conversationId = ConversationManager.currentConversationId();
+    const loadGeneration = this.loadGeneration;
     UI.showTopLoadingIndicator(true); // 显示顶部加载指示器
 
     try {
@@ -265,8 +304,11 @@ const MessageHandler = {
       // 加载更多消息
       const moreMessages = await API.getMessages(
         CONFIG.UI.LOAD_MORE_BATCH_SIZE,
-        this.totalLoadedMessages
+        this.totalLoadedMessages,
+        conversationId
       );
+
+      if (loadGeneration !== this.loadGeneration) return;
 
       if (moreMessages && moreMessages.length > 0) {
         // 合并消息（新加载的历史消息在前面）
@@ -297,6 +339,7 @@ const MessageHandler = {
       // 更新无限滚动状态
       this.updateInfiniteScrollState();
     } catch (error) {
+      if (loadGeneration !== this.loadGeneration) return;
       console.error("无限滚动加载失败:", error);
       // 静默处理错误，不显示错误提示
     } finally {
@@ -399,7 +442,8 @@ const MessageHandler = {
       // 移除错误的连接状态设置，发送消息不应该改变连接状态
 
       const deviceId = Utils.getDeviceId();
-      await API.sendMessage(content, deviceId);
+      const conversationId = ConversationManager.currentConversationId();
+      await API.sendMessage(content, deviceId, conversationId);
 
       // 清空输入框
       UI.clearInput();
@@ -508,6 +552,7 @@ const MessageHandler = {
 
           // 执行清理操作
           const result = await API.clearAllData("1234"); // 自动传递默认确认码
+          await ConversationManager.refresh();
 
           // 清空前端界面
           UI.showEmpty("数据已清空，开始新的聊天吧！");
@@ -722,7 +767,10 @@ const MessageHandler = {
   },
 
   // 清空所有消息
-  clearAllMessages() {
+  async clearAllMessages() {
+    const conversationId = ConversationManager.currentConversationId();
+    await API.clearConversation(conversationId);
+    this.loadGeneration += 1;
     // 清空消息缓存
     this.lastMessages = [];
     this.totalLoadedMessages = 0;
@@ -736,6 +784,7 @@ const MessageHandler = {
 
     // 重置滚动状态
     this.updateInfiniteScrollState();
+    await ConversationManager.refresh();
   },
 
   // 搜索消息（预留功能）

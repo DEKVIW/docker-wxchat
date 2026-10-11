@@ -1,9 +1,9 @@
 // 微信文件传输助手 Service Worker
 // 提供离线缓存和后台同步功能
 
-const CACHE_NAME = "wxchat-v1.0.1";
-const STATIC_CACHE_NAME = "wxchat-static-v1.0.1";
-const DYNAMIC_CACHE_NAME = "wxchat-dynamic-v1.0.1";
+const CACHE_NAME = "wxchat-v1.0.19";
+const STATIC_CACHE_NAME = "wxchat-static-v1.0.19";
+const DYNAMIC_CACHE_NAME = "wxchat-dynamic-v1.0.19";
 
 // 需要缓存的静态资源
 const STATIC_ASSETS = [
@@ -14,9 +14,10 @@ const STATIC_ASSETS = [
   "/css/reset.css",
   "/css/main.css",
   "/css/components.css",
-  "/css/responsive.css",
   "/css/auth.css",
-  "/css/ios-fixes.css",
+  "/css/wechat-refresh.css",
+  "/css/composer-layout.css",
+  "/css/search.css",
   "/js/config.js",
   "/js/utils.js",
   "/js/auth.js",
@@ -27,6 +28,14 @@ const STATIC_ASSETS = [
   "/js/messageHandler.js",
   "/js/pwa.js",
   "/js/app.js",
+  "/js/components/functionButton.js",
+  "/js/components/functionMenu.js",
+  "/js/search/searchAPI.js",
+  "/js/search/searchUI.js",
+  "/js/search/searchHandler.js",
+  "/js/conversation-manager.js",
+  "/icons/avatar-device.svg",
+  "/icons/avatar-self.svg",
   "/icons/android/android-launchericon-192-192.png",
   "/icons/android/android-launchericon-512-512.png",
   "/icons/ios/32.png",

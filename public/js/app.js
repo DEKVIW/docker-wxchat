@@ -92,6 +92,8 @@ class WeChatApp {
         window.SearchHandler = SearchHandler;
       }
 
+      await ConversationManager.init();
+
       // 设置初始连接状态
       UI.setConnectionStatus(navigator.onLine ? "connected" : "disconnected");
 
@@ -112,58 +114,152 @@ class WeChatApp {
 
   // iOS Safari 视口修复
   initIOSViewportFix() {
-    // 检测是否为iOS设备
-    const isIOS =
-      /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-
-    if (isIOS) {
-      // 设置CSS自定义属性来修复100vh问题
-      const setVH = () => {
-        const vh = window.innerHeight * 0.01;
-        document.documentElement.style.setProperty("--vh", `${vh}px`);
-      };
-
-      // 初始设置
-      setVH();
-
-      // 监听窗口大小变化（包括虚拟键盘弹出/收起）
-      window.addEventListener("resize", Utils.debounce(setVH, 100));
-      window.addEventListener("orientationchange", () => {
-        setTimeout(setVH, 500); // 延迟执行，等待方向改变完成
-      });
-
-      // 监听虚拟键盘事件
-      this.handleIOSKeyboard();
-    }
+    this.handleIOSKeyboard();
   }
 
   // 处理iOS虚拟键盘
   handleIOSKeyboard() {
-    let initialViewportHeight = window.innerHeight;
+    const root = document.documentElement;
+    const virtualKeyboard = navigator.virtualKeyboard;
+    const messageText = document.getElementById("messageText");
+    const isIOS =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const useVirtualKeyboardApi = Boolean(virtualKeyboard && !isIOS);
+    let frameId = null;
+    let syncTimerId = null;
 
-    const handleViewportChange = () => {
-      const currentHeight = window.innerHeight;
-      const heightDifference = initialViewportHeight - currentHeight;
+    const getViewportState = () => {
+      const viewport = window.visualViewport;
+      const layoutHeight = Math.max(
+        document.documentElement.clientHeight || 0,
+        window.innerHeight || 0
+      );
+      const viewportHeight =
+        viewport?.height || window.innerHeight || layoutHeight;
+      const viewportOffsetTop = viewport?.offsetTop || 0;
+      const viewportBottom = viewportOffsetTop + viewportHeight;
+      const visualKeyboardHeight = Math.max(0, layoutHeight - viewportBottom);
+      const keyboardRect = useVirtualKeyboardApi
+        ? virtualKeyboard.boundingRect
+        : null;
+      const apiKeyboardHeight = keyboardRect?.height || 0;
+      const apiBottomInset = keyboardRect?.height
+        ? Math.max(0, layoutHeight - keyboardRect.y)
+        : 0;
+      const keyboardHeight = useVirtualKeyboardApi
+        ? Math.max(
+            apiKeyboardHeight,
+            apiBottomInset,
+            visualKeyboardHeight,
+          )
+        : visualKeyboardHeight;
 
-      // 如果高度减少超过150px，认为是虚拟键盘弹出
-      if (heightDifference > 150) {
-        document.body.classList.add("keyboard-open");
-        // 确保输入框可见
-        setTimeout(() => {
-          const inputContainer = document.querySelector(".input-container");
-          if (inputContainer) {
-            inputContainer.scrollIntoView({ behavior: "smooth", block: "end" });
-          }
-        }, 300);
-      } else {
-        document.body.classList.remove("keyboard-open");
-      }
+      return {
+        viewportHeight,
+        viewportOffsetTop,
+        keyboardHeight,
+      };
     };
 
-    window.addEventListener(
-      "resize",
-      Utils.debounce(handleViewportChange, 100)
-    );
+    const updateKeyboardState = () => {
+      frameId = null;
+      const nextState = getViewportState();
+
+      root.style.setProperty(
+        "--wx-viewport-height",
+        `${Math.round(nextState.viewportHeight)}px`
+      );
+      root.style.setProperty(
+        "--vh",
+        `${nextState.viewportHeight * 0.01}px`
+      );
+      root.style.setProperty(
+        "--wx-keyboard-height",
+        `${Math.round(nextState.keyboardHeight)}px`
+      );
+      root.style.setProperty(
+        "--wx-viewport-offset-top",
+        `${Math.round(nextState.viewportOffsetTop)}px`
+      );
+    };
+
+    const scheduleUpdate = (delay = 120) => {
+      if (syncTimerId !== null) {
+        window.clearTimeout(syncTimerId);
+      }
+      syncTimerId = window.setTimeout(() => {
+        syncTimerId = null;
+        if (frameId === null) {
+          frameId = window.requestAnimationFrame(updateKeyboardState);
+        }
+      }, delay);
+    };
+
+    window.addEventListener("resize", () => scheduleUpdate(120), {
+      passive: true,
+    });
+    window.addEventListener("orientationchange", () => {
+      setTimeout(() => {
+        scheduleUpdate(80);
+      }, 300);
+    });
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", () => scheduleUpdate(120), {
+        passive: true,
+      });
+      window.visualViewport.addEventListener("scroll", () => scheduleUpdate(120), {
+        passive: true,
+      });
+    }
+
+    if (virtualKeyboard) {
+      virtualKeyboard.addEventListener("geometrychange", () =>
+        scheduleUpdate(120)
+      );
+    }
+
+    if (messageText) {
+      messageText.addEventListener("focus", () => {
+        scheduleUpdate(160);
+      });
+      messageText.addEventListener("blur", () => {
+        scheduleUpdate(180);
+      });
+
+      const messageList = document.getElementById("messageList");
+      messageList?.addEventListener(
+        "pointerdown",
+        () => {
+          if (document.activeElement === messageText) {
+            messageText.blur();
+          }
+        },
+        { passive: true }
+      );
+    }
+
+    const inputContainer = document.querySelector(".input-container");
+    if (inputContainer && "ResizeObserver" in window) {
+      let composerHeight = "";
+      const observer = new ResizeObserver((entries) => {
+        const height = entries[0]?.target.getBoundingClientRect().height;
+        if (height) {
+          const nextHeight = `${Math.ceil(height)}px`;
+          if (nextHeight !== composerHeight) {
+            composerHeight = nextHeight;
+            document.documentElement.style.setProperty(
+              "--wx-composer-height",
+              nextHeight
+            );
+          }
+        }
+      });
+      observer.observe(inputContainer);
+    }
+
+    updateKeyboardState();
   }
 
   // 检查浏览器兼容性
@@ -217,13 +313,22 @@ class WeChatApp {
 
     // 监听清空聊天事件
     document.addEventListener("functionMenu:clearChat", async () => {
-      try {
-        await MessageHandler.clearAllMessages();
-        UI.showSuccess("聊天记录已清空");
-      } catch (error) {
-        UI.showError("清空聊天记录失败");
-        console.error("清空聊天记录失败:", error);
-      }
+      const conversation = ConversationManager.conversations.find(
+        (item) => Number(item.id) === ConversationManager.currentConversationId()
+      );
+      UI.showSlideToConfirmModal({
+        title: "清空当前聊天",
+        message: `只清空“${conversation?.name || "当前会话"}”中的消息和文件，此操作不可撤销。`,
+        onConfirm: async () => {
+          try {
+            await MessageHandler.clearAllMessages();
+            UI.showSuccess("当前聊天记录已清空");
+          } catch (error) {
+            UI.showError(error.message || "清空聊天记录失败");
+            console.error("清空聊天记录失败:", error);
+          }
+        },
+      });
     });
   }
 

@@ -189,12 +189,121 @@ authApi.post("/logout", async (c) => {
   return c.json({ success: true, message: "已登出" });
 });
 
+api.get("/conversations", async (c) => {
+  try {
+    const result = await c.env.DB.prepare(`
+      SELECT c.id, c.name, c.is_default, c.is_pinned, c.created_at, c.updated_at,
+        (SELECT CASE WHEN m.type = 'file' THEN f.original_name ELSE m.content END
+         FROM messages m LEFT JOIN files f ON m.file_id = f.id
+         WHERE m.conversation_id = c.id ORDER BY m.id DESC LIMIT 1) AS last_message,
+        (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id) AS message_count
+      FROM conversations c ORDER BY c.is_default DESC, c.is_pinned DESC, c.updated_at DESC, c.id ASC
+    `).all();
+    return c.json({ success: true, data: result.results || [] });
+  } catch (error) {
+    return c.json({ success: false, error: error.message }, 500);
+  }
+});
+
+api.post("/conversations", async (c) => {
+  try {
+    const { name = "" } = await c.req.json();
+    const normalizedName = String(name).trim().slice(0, 40);
+    if (!normalizedName) return c.json({ success: false, error: "会话名称不能为空" }, 400);
+    const result = await c.env.DB.prepare(
+      "INSERT INTO conversations (name, is_default) VALUES (?, 0)"
+    ).bind(normalizedName).run();
+    return c.json({ success: true, data: { id: result.meta.last_row_id, name: normalizedName, is_default: 0 } }, 201);
+  } catch (error) {
+    return c.json({ success: false, error: error.message }, 500);
+  }
+});
+
+api.patch("/conversations/:id", async (c) => {
+  try {
+    const conversationId = Number(c.req.param("id"));
+    const body = await c.req.json();
+    const updates = [];
+    const bindings = [];
+    if (Object.hasOwn(body, "name")) {
+      const normalizedName = String(body.name).trim().slice(0, 40);
+      if (!normalizedName) return c.json({ success: false, error: "会话名称不能为空" }, 400);
+      updates.push("name = ?");
+      bindings.push(normalizedName);
+    }
+    if (Object.hasOwn(body, "is_pinned")) {
+      updates.push("is_pinned = ?");
+      bindings.push(body.is_pinned ? 1 : 0);
+    }
+    if (!Number.isSafeInteger(conversationId) || conversationId < 1 || !updates.length) {
+      return c.json({ success: false, error: "会话编号或操作无效" }, 400);
+    }
+    updates.push("updated_at = CURRENT_TIMESTAMP");
+    bindings.push(conversationId);
+    const result = await c.env.DB.prepare(
+      `UPDATE conversations SET ${updates.join(", ")} WHERE id = ?`
+    ).bind(...bindings).run();
+    if (!result.meta.changes) return c.json({ success: false, error: "会话不存在" }, 404);
+    return c.json({ success: true, data: { id: conversationId } });
+  } catch (error) {
+    return c.json({ success: false, error: error.message }, 500);
+  }
+});
+
+api.delete("/conversations/:id", async (c) => {
+  try {
+    const { DB, R2 } = c.env;
+    const conversationId = Number(c.req.param("id"));
+    if (!Number.isSafeInteger(conversationId) || conversationId < 1) {
+      return c.json({ success: false, error: "会话编号无效" }, 400);
+    }
+    const conversation = await DB.prepare("SELECT id, is_default FROM conversations WHERE id = ?")
+      .bind(conversationId).first();
+    if (!conversation) return c.json({ success: false, error: "会话不存在" }, 404);
+    if (conversation.is_default) return c.json({ success: false, error: "默认聊天不可删除" }, 400);
+
+    const files = await DB.prepare(`
+      SELECT DISTINCT f.id, f.r2_key
+      FROM files f JOIN messages m ON m.file_id = f.id
+      WHERE m.conversation_id = ?
+    `).bind(conversationId).all();
+    const deletedMessages = await DB.prepare("DELETE FROM messages WHERE conversation_id = ?")
+      .bind(conversationId).run();
+    let deletedFiles = 0;
+    for (const file of files.results || []) {
+      const references = await DB.prepare("SELECT COUNT(*) AS total FROM messages WHERE file_id = ?")
+        .bind(file.id).first();
+      if (references?.total) continue;
+      await DB.prepare("DELETE FROM files WHERE id = ?").bind(file.id).run();
+      if (R2 && file.r2_key) {
+        try {
+          await R2.delete(file.r2_key);
+          deletedFiles++;
+        } catch (error) {
+          console.error("清理已删除聊天的文件失败:", error);
+        }
+      }
+    }
+    await DB.prepare("DELETE FROM conversations WHERE id = ?").bind(conversationId).run();
+    return c.json({
+      success: true,
+      data: { deletedMessages: deletedMessages.meta.changes || 0, deletedFiles },
+    });
+  } catch (error) {
+    return c.json({ success: false, error: error.message }, 500);
+  }
+});
+
 // 获取消息列表
 api.get("/messages", async (c) => {
   try {
     const { DB } = c.env;
-    const limit = c.req.query("limit") || 50;
-    const offset = c.req.query("offset") || 0;
+    const limit = Number(c.req.query("limit") || 50);
+    const offset = Number(c.req.query("offset") || 0);
+    const conversationId = Number(c.req.query("conversationId") || 1);
+    if (!Number.isSafeInteger(conversationId) || conversationId < 1) {
+      return c.json({ success: false, error: "会话编号无效" }, 400);
+    }
 
     const stmt = DB.prepare(`
       SELECT
@@ -203,16 +312,19 @@ api.get("/messages", async (c) => {
         m.content,
         m.device_id,
         m.timestamp,
+        m.conversation_id,
         f.original_name,
         f.file_size,
         f.mime_type,
         f.r2_key
       FROM messages m
       LEFT JOIN files f ON m.file_id = f.id
+      WHERE m.conversation_id = ?
       ORDER BY m.timestamp ASC
+      LIMIT ? OFFSET ?
     `);
 
-    const result = await stmt.all();
+    const result = await stmt.bind(conversationId, limit, offset).all();
 
     return c.json({
       success: true,
@@ -234,7 +346,8 @@ api.get("/messages", async (c) => {
 api.post("/messages", async (c) => {
   try {
     const { DB } = c.env;
-    const { content, deviceId, type = "text" } = await c.req.json();
+    const { content, deviceId, type = "text", conversationId = 1 } = await c.req.json();
+    const normalizedConversationId = Number(conversationId);
 
     if (!content || !deviceId) {
       return c.json(
@@ -246,12 +359,18 @@ api.post("/messages", async (c) => {
       );
     }
 
+    const conversation = await DB.prepare("SELECT id FROM conversations WHERE id = ?")
+      .bind(normalizedConversationId).first();
+    if (!conversation) return c.json({ success: false, error: "会话不存在" }, 404);
+
     const stmt = DB.prepare(`
-      INSERT INTO messages (type, content, device_id)
-      VALUES (?, ?, ?)
+      INSERT INTO messages (conversation_id, type, content, device_id)
+      VALUES (?, ?, ?, ?)
     `);
 
-    const result = await stmt.bind(type, content, deviceId).run();
+    const result = await stmt.bind(normalizedConversationId, type, content, deviceId).run();
+    await DB.prepare("UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .bind(normalizedConversationId).run();
 
     return c.json({
       success: true,
@@ -268,11 +387,69 @@ api.post("/messages", async (c) => {
   }
 });
 
+// 删除单条消息
+api.delete("/messages/:id", async (c) => {
+  try {
+    const { DB, R2 } = c.env;
+    const messageId = Number(c.req.param("id"));
+    const conversationId = Number(c.req.query("conversationId") || 1);
+
+    if (!Number.isSafeInteger(messageId) || messageId <= 0) {
+      return c.json({ success: false, error: "消息ID无效" }, 400);
+    }
+
+    const message = await DB.prepare(`
+      SELECT m.id, m.file_id, f.r2_key
+      FROM messages m
+      LEFT JOIN files f ON m.file_id = f.id
+      WHERE m.id = ? AND m.conversation_id = ?
+    `)
+      .bind(messageId, conversationId)
+      .first();
+
+    if (!message) {
+      return c.json({ success: false, error: "消息不存在" }, 404);
+    }
+
+    await DB.prepare("DELETE FROM messages WHERE id = ?")
+      .bind(messageId)
+      .run();
+
+    if (message.file_id) {
+      const references = await DB.prepare(
+        "SELECT COUNT(*) AS total FROM messages WHERE file_id = ?"
+      )
+        .bind(message.file_id)
+        .first();
+
+      if (!references?.total) {
+        await DB.prepare("DELETE FROM files WHERE id = ?")
+          .bind(message.file_id)
+          .run();
+
+        if (R2 && message.r2_key) {
+          try {
+            await R2.delete(message.r2_key);
+          } catch (error) {
+            console.error("删除文件对象失败:", error);
+          }
+        }
+      }
+    }
+
+    return c.json({ success: true, data: { id: messageId } });
+  } catch (error) {
+    console.error("删除消息失败:", error);
+    return c.json({ success: false, error: error.message }, 500);
+  }
+});
+
 // AI消息处理接口
 api.post("/ai/message", async (c) => {
   try {
     const { DB } = c.env;
-    const { content, deviceId, type = "ai_response" } = await c.req.json();
+    const { content, deviceId, type = "ai_response", conversationId = 1 } = await c.req.json();
+    const normalizedConversationId = Number(conversationId);
 
     if (!content || !deviceId) {
       return c.json(
@@ -292,13 +469,19 @@ api.post("/ai/message", async (c) => {
       messageContent = `[AI-THINKING] ${content}`;
     }
 
+    const conversation = await DB.prepare("SELECT id FROM conversations WHERE id = ?")
+      .bind(normalizedConversationId).first();
+    if (!conversation) return c.json({ success: false, error: "会话不存在" }, 404);
+
     // 存储AI消息到数据库（使用text类型）
     const stmt = DB.prepare(`
-      INSERT INTO messages (type, content, device_id)
-      VALUES (?, ?, ?)
+      INSERT INTO messages (conversation_id, type, content, device_id)
+      VALUES (?, ?, ?, ?)
     `);
 
-    const result = await stmt.bind("text", messageContent, deviceId).run();
+    const result = await stmt.bind(normalizedConversationId, "text", messageContent, deviceId).run();
+    await DB.prepare("UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .bind(normalizedConversationId).run();
 
     return c.json({
       success: true,
@@ -330,6 +513,7 @@ api.post("/files/upload", async (c) => {
     const formData = await c.req.formData();
     const file = formData.get("file");
     const deviceId = formData.get("deviceId");
+    const conversationId = Number(formData.get("conversationId") || 1);
 
     if (!file || !deviceId) {
       return c.json(
@@ -339,6 +523,12 @@ api.post("/files/upload", async (c) => {
         },
         400
       );
+    }
+
+    const conversation = await DB.prepare("SELECT id FROM conversations WHERE id = ?")
+      .bind(conversationId).first();
+    if (!Number.isSafeInteger(conversationId) || !conversation) {
+      return c.json({ success: false, error: "会话不存在" }, 404);
     }
 
     // 检查文件大小限制（10MB）
@@ -397,13 +587,15 @@ api.post("/files/upload", async (c) => {
 
       // 创建文件消息
       const messageStmt = DB.prepare(`
-        INSERT INTO messages (type, file_id, device_id)
-        VALUES (?, ?, ?)
+        INSERT INTO messages (conversation_id, type, file_id, device_id)
+        VALUES (?, ?, ?, ?)
       `);
 
       await messageStmt
-        .bind("file", fileResult.meta.last_row_id, deviceId)
+        .bind(conversationId, "file", fileResult.meta.last_row_id, deviceId)
         .run();
+      await DB.prepare("UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+        .bind(conversationId).run();
 
       return c.json({
         success: true,
@@ -536,6 +728,7 @@ api.get("/search", async (c) => {
     const timeRange = c.req.query("timeRange") || "all";
     const deviceId = c.req.query("deviceId") || "all";
     const fileType = c.req.query("fileType") || "all";
+    const conversationId = Number(c.req.query("conversationId") || 1);
     const limit = parseInt(c.req.query("limit") || "100");
     const offset = parseInt(c.req.query("offset") || "0");
 
@@ -549,21 +742,21 @@ api.get("/search", async (c) => {
       );
     }
 
-    // 构建基础查询
-    let whereConditions = [];
-    let joinConditions = [];
-    let params = [];
+    const normalizedQuery = query.trim();
+    const matchConditions = [];
+    const joinConditions = [];
+    const params = [];
 
     // 文本搜索条件
     if (type === "all" || type === "text") {
-      whereConditions.push(`(m.content LIKE ? AND m.type = 'text')`);
-      params.push(`%${query}%`);
+      matchConditions.push(`(m.content LIKE ? AND m.type = 'text')`);
+      params.push(`%${normalizedQuery}%`);
     }
 
     if (type === "all" || type === "file") {
       joinConditions.push("LEFT JOIN files f ON m.file_id = f.id");
-      whereConditions.push(`(f.original_name LIKE ? AND m.type = 'file')`);
-      params.push(`%${query}%`);
+      matchConditions.push(`(f.original_name LIKE ? AND m.type = 'file')`);
+      params.push(`%${normalizedQuery}%`);
     }
 
     // 如果只搜索文件但没有JOIN，则添加JOIN
@@ -572,6 +765,12 @@ api.get("/search", async (c) => {
     }
 
     // 时间范围过滤
+    params.unshift(conversationId);
+    const whereConditions = [
+      `m.conversation_id = ?`,
+      `(${matchConditions.join(" OR ")})`,
+    ];
+
     if (timeRange !== "all") {
       switch (timeRange) {
         case "today":
@@ -657,7 +856,7 @@ api.get("/search", async (c) => {
         const mimeConditions = mimeTypes
           .map(() => "f.mime_type = ?")
           .join(" OR ");
-        whereConditions.push(`(${mimeConditions})`);
+        whereConditions.push(`(m.type = 'file' AND (${mimeConditions}))`);
         params.push(...mimeTypes);
       }
     }
@@ -678,7 +877,7 @@ api.get("/search", async (c) => {
       joinConditions.length > 0 ? joinConditions.join(" ") : "";
     const whereClause =
       whereConditions.length > 0
-        ? `WHERE (${whereConditions.join(" OR ")})`
+        ? `WHERE (${whereConditions.join(" AND ")})`
         : "";
 
     let selectFields = `
@@ -738,6 +937,7 @@ api.get("/search", async (c) => {
         timeRange,
         deviceId,
         fileType,
+        conversationId,
       },
     });
   } catch (error) {
@@ -757,6 +957,7 @@ api.get("/search/suggestions", async (c) => {
   try {
     const { DB } = c.env;
     const query = c.req.query("q");
+    const conversationId = Number(c.req.query("conversationId") || 1);
 
     if (!query || query.trim().length < 2) {
       return c.json({
@@ -775,12 +976,12 @@ api.get("/search/suggestions", async (c) => {
         END as suggestion
       FROM messages m
       LEFT JOIN files f ON m.file_id = f.id
-      WHERE suggestion LIKE ?
+      WHERE m.conversation_id = ? AND suggestion LIKE ?
       ORDER BY m.timestamp DESC
       LIMIT 10
     `);
 
-    const result = await stmt.bind(`%${query}%`).all();
+    const result = await stmt.bind(conversationId, `%${query}%`).all();
 
     return c.json({
       success: true,
@@ -825,6 +1026,47 @@ api.post("/sync", async (c) => {
 });
 
 // 数据清理 - 清空所有数据
+api.delete("/conversations/:id/messages", async (c) => {
+  try {
+    const { DB, R2 } = c.env;
+    const conversationId = Number(c.req.param("id"));
+    if (!Number.isSafeInteger(conversationId) || conversationId < 1) {
+      return c.json({ success: false, error: "会话编号无效" }, 400);
+    }
+    const conversation = await DB.prepare("SELECT id FROM conversations WHERE id = ?")
+      .bind(conversationId).first();
+    if (!conversation) return c.json({ success: false, error: "会话不存在" }, 404);
+    const files = await DB.prepare(`
+      SELECT DISTINCT f.id, f.r2_key
+      FROM files f JOIN messages m ON m.file_id = f.id
+      WHERE m.conversation_id = ?
+    `).bind(conversationId).all();
+    const deleted = await DB.prepare("DELETE FROM messages WHERE conversation_id = ?")
+      .bind(conversationId).run();
+    let deletedFiles = 0;
+    for (const file of files.results || []) {
+      const references = await DB.prepare("SELECT COUNT(*) AS total FROM messages WHERE file_id = ?")
+        .bind(file.id).first();
+      if (references?.total) continue;
+      await DB.prepare("DELETE FROM files WHERE id = ?").bind(file.id).run();
+      try {
+        await R2.delete(file.r2_key);
+        deletedFiles++;
+      } catch (error) {
+        console.error("清理会话文件失败:", error);
+      }
+    }
+    await DB.prepare("UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .bind(conversationId).run();
+    return c.json({
+      success: true,
+      data: { deletedMessages: deleted.meta.changes || 0, deletedFiles },
+    });
+  } catch (error) {
+    return c.json({ success: false, error: error.message }, 500);
+  }
+});
+
 api.post("/clear-all", async (c) => {
   try {
     const { DB, R2 } = c.env;
@@ -948,14 +1190,18 @@ api.get("/events", async (c) => {
         }
 
         const stmt = DB.prepare(`
-          SELECT COUNT(*) as count
-          FROM messages
-          WHERE timestamp > datetime('now', '-10 seconds')
+          SELECT id
+          FROM conversations
+          WHERE updated_at > datetime('now', '-10 seconds')
         `);
-        const result = await stmt.first();
+        const result = await stmt.all();
+        const conversationIds = result.results?.map((row) => row.id) || [];
 
-        if (result && result.count > 0) {
-          sendSSE(JSON.stringify({ newMessages: result.count }), "message");
+        if (conversationIds.length > 0) {
+          sendSSE(JSON.stringify({
+            newMessages: conversationIds.length,
+            conversationIds,
+          }), "message");
         }
       } catch (error) {
         // 静默处理SSE消息检查失败
@@ -1000,6 +1246,7 @@ api.get("/poll", async (c) => {
     const { DB } = c.env;
     const deviceId = c.req.query("deviceId");
     const lastMessageId = c.req.query("lastMessageId") || "0";
+    const conversationId = Number(c.req.query("conversationId") || 1);
     const timeout = parseInt(c.req.query("timeout") || "30"); // 30秒超时
 
     if (!deviceId) {
@@ -1018,9 +1265,9 @@ api.get("/poll", async (c) => {
       const stmt = DB.prepare(`
         SELECT COUNT(*) as count
         FROM messages
-        WHERE id > ?
+        WHERE conversation_id = ? AND id > ?
       `);
-      const result = await stmt.bind(lastMessageId).first();
+      const result = await stmt.bind(conversationId, lastMessageId).first();
 
       if (result && result.count > 0) {
         // 有新消息，立即返回

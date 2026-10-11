@@ -48,37 +48,101 @@
     <link rel="stylesheet" href="./css/reset.css" />
     <link rel="stylesheet" href="./css/main.css" />
     <link rel="stylesheet" href="./css/components.css" />
-    <link rel="stylesheet" href="./css/functionComponents.css" />
     <link rel="stylesheet" href="./css/ai.css" />
     <link rel="stylesheet" href="./css/imageGen.css" />
     <link rel="stylesheet" href="./css/search.css" />
-    <link rel="stylesheet" href="./css/responsive.css" />
-    <link rel="stylesheet" href="css/ios-fixes.css" />
-    <link rel="stylesheet" href="./css/daisyui-wechat.css" />
 
-    <!-- Tailwind CSS + DaisyUI -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link
-      href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css"
-      rel="stylesheet"
-      type="text/css"
-    />
-
-    <!-- Swiper 轮播库 -->
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/swiper@9/swiper-bundle.min.css"
-    />
-    <script src="https://cdn.jsdelivr.net/npm/swiper@9/swiper-bundle.min.js"></script>
-
-    <!-- Markdown解析库 -->
-    <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
+    <link rel="stylesheet" href="./css/wechat-refresh.css?v=1.0.19" />
+    <link rel="stylesheet" href="./css/composer-layout.css?v=1.0.19" />
   </head>
   <body>
     <div class="app">
+      <div class="conversation-drawer-overlay" id="conversationOverlay"></div>
+      <nav class="app-nav-rail" aria-label="微信导航">
+        <div class="nav-rail-top">
+          <div class="nav-rail-avatar" aria-label="我的设备" title="我的设备">
+            <img src="./icons/avatar-self.svg" alt="" />
+          </div>
+          <button type="button" class="nav-rail-button is-active" aria-label="聊天" title="聊天">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M5 6.5h14v9H9l-4 3v-12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+              <path d="M8 10h8M8 13h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+            </svg>
+          </button>
+          <button type="button" class="nav-rail-button" aria-label="通讯录" title="通讯录">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.7" />
+              <path d="M3.8 18c.7-3 2.4-4.5 5.2-4.5s4.5 1.5 5.2 4.5M16 5.5h4M16 9h4M16 12.5h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+            </svg>
+          </button>
+        </div>
+        <div class="nav-rail-bottom">
+          <button type="button" class="nav-rail-button" data-ui-action="search" aria-label="搜索消息" title="搜索消息">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="10.8" cy="10.8" r="6.3" stroke="currentColor" stroke-width="1.7" />
+              <path d="m15.5 15.5 4.2 4.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+            </svg>
+          </button>
+        </div>
+      </nav>
+      <aside class="conversation-sidebar" id="conversationSidebar" aria-label="会话列表">
+        <div class="sidebar-brand">
+          <img class="sidebar-brand-avatar" src="./icons/avatar-device.svg" alt="" />
+          <div class="sidebar-brand-copy">
+            <strong>微信文件助手</strong>
+            <span>文件传输助手</span>
+          </div>
+        </div>
+        <div class="sidebar-section-heading">
+          <span>聊天</span>
+          <span class="sidebar-heading-actions">
+            <span class="sidebar-count" id="conversationCount">1</span>
+            <button type="button" class="conversation-create-button" id="createConversation" aria-label="新建聊天" title="新建聊天">+</button>
+          </span>
+        </div>
+        <div class="conversation-list" id="conversationList" role="list"></div>
+        <div class="sidebar-sync-note">
+          <span class="sidebar-sync-icon" aria-hidden="true">↔</span>
+          <span>消息可在已登录设备间同步</span>
+        </div>
+      </aside>
+
       <!-- 主体区域 -->
       <main class="app-main">
         <div class="chat-container">
+          <header class="chat-header">
+            <div class="chat-header-identity">
+              <button type="button" class="conversation-toggle-button" id="conversationToggle" aria-label="打开聊天列表" title="聊天列表">
+                <svg viewBox="0 0 24 24" width="21" height="21" fill="none" aria-hidden="true">
+                  <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                </svg>
+              </button>
+              <div class="chat-header-avatar" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="23" height="23" fill="none">
+                  <path d="M5 7.5h14v9H5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+                  <path d="m7 10 5 3.5 5-3.5M8 5h8M8 19h8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </div>
+              <div class="chat-header-copy">
+                <h1>文件传输助手</h1>
+                <span><i class="sync-status-dot"></i><span class="chat-status-label">消息与文件互通</span></span>
+              </div>
+            </div>
+            <div class="chat-header-actions">
+              <button type="button" class="header-action-button" data-ui-action="search" aria-label="搜索消息" title="搜索消息">
+                <svg viewBox="0 0 24 24" width="21" height="21" fill="none" aria-hidden="true">
+                  <circle cx="10.8" cy="10.8" r="6.3" stroke="currentColor" stroke-width="1.8" />
+                  <path d="m15.5 15.5 4.2 4.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                </svg>
+              </button>
+              <button type="button" class="header-action-button" data-ui-action="menu" aria-label="更多功能" title="更多功能">
+                <svg viewBox="0 0 24 24" width="21" height="21" fill="currentColor" aria-hidden="true">
+                  <circle cx="5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="19" cy="12" r="1.7" />
+                </svg>
+              </button>
+            </div>
+          </header>
+
           <!-- 消息列表 -->
           <div class="message-list" id="messageList">
             <!-- 消息内容将由JavaScript动态加载 -->
@@ -106,19 +170,31 @@
                   class="file-button"
                   id="fileButton"
                   title="上传文件"
+                  aria-label="上传文件"
                 >
-                  📁
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true">
+                    <path d="M8 12.5 13.7 6.8a3.2 3.2 0 0 1 4.5 4.5l-7.6 7.6a5 5 0 0 1-7-7l7.8-7.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </button>
+                <button type="button" class="emoji-button" data-ui-action="emoji" title="表情" aria-label="选择表情">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7" />
+                    <path d="M8.5 14.2c.8 1.2 2 1.8 3.5 1.8s2.7-.6 3.5-1.8M9 9.5h.1m5.8 0h.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                  </svg>
                 </button>
                 <div class="input-field-container">
                   <textarea
                     id="messageText"
-                    placeholder="输入消息..."
+                    placeholder="发送消息..."
                     rows="1"
+                    aria-label="消息内容"
                   ></textarea>
                   <button
                     type="button"
                     class="function-button"
                     id="functionButton"
+                    aria-label="更多功能"
+                    title="更多功能"
                   >
                     <svg
                       class="function-icon"
@@ -127,8 +203,11 @@
                       height="16"
                     >
                       <path
-                        fill="currentColor"
-                        d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"
+                        d="M12 5v14M5 12h14"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.2"
+                        stroke-linecap="round"
                       />
                     </svg>
                   </button>
@@ -154,6 +233,7 @@
     </div>
 
     <!-- JavaScript 模块 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
     <script src="./js/config.js"></script>
     <script src="./js/utils.js"></script>
     <script src="./js/auth.js"></script>
@@ -163,8 +243,6 @@
     <script src="./js/realtime.js"></script>
     <script src="./js/messageHandler.js"></script>
     <script src="./js/pwa.js"></script>
-    <!-- 外部库 -->
-    <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
     <!-- 功能组件 -->
     <script src="./js/components/functionButton.js"></script>
     <script src="./js/components/functionMenu.js"></script>
@@ -180,6 +258,7 @@
     <script src="./js/search/searchAPI.js"></script>
     <script src="./js/search/searchUI.js"></script>
     <script src="./js/search/searchHandler.js"></script>
-    <script src="./js/app.js"></script>
+    <script src="./js/conversation-manager.js"></script>
+    <script src="./js/app.js?v=1.0.19"></script>
   </body>
 </html>

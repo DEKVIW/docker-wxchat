@@ -367,22 +367,6 @@
   }
 }
 
-.swiper-slide-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  grid-template-rows: repeat(2, 1fr);
-  gap: 20px 8px;
-  padding: 20px 8px 28px 8px;
-  justify-items: center;
-  align-items: center;
-}
-@media (max-width: 600px) {
-  .swiper-slide-grid {
-    gap: 16px 4px;
-    padding: 12px 2px 18px 2px;
-  }
-}
-
 @media (min-width: 600px) {
   .function-menu-content {
     overflow-y: auto;

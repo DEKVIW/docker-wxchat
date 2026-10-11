@@ -88,6 +88,7 @@ const AIHandler = {
 
   // 处理AI消息 - 按照原项目逻辑
   async handleAIMessage(content) {
+    this.activeConversationId = ConversationManager.currentConversationId();
     if (this.isProcessing) {
       return;
     }
@@ -170,7 +171,11 @@ const AIHandler = {
     };
 
     // 通过API发送消息
-    await API.sendMessage(content, deviceId);
+    await API.sendMessage(
+      content,
+      deviceId,
+      this.activeConversationId || ConversationManager.currentConversationId()
+    );
 
     // 立即刷新消息列表（不重置已加载消息）
     if (
@@ -198,6 +203,7 @@ const AIHandler = {
           content: "🤔 AI正在思考...",
           deviceId: "ai-system",
           type: "ai_thinking",
+          conversationId: this.activeConversationId || ConversationManager.currentConversationId(),
         }),
       });
 
@@ -473,6 +479,7 @@ const AIHandler = {
           content: result.response || "抱歉，我无法生成回答。",
           deviceId: "ai-system",
           type: CONFIG.MESSAGE_TYPES.AI_RESPONSE,
+          conversationId: this.activeConversationId || ConversationManager.currentConversationId(),
         }),
       });
 

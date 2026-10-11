@@ -105,11 +105,16 @@ const API = {
   },
 
   // 获取消息列表
-  async getMessages(limit = CONFIG.UI.MESSAGE_LOAD_LIMIT, offset = 0) {
+  async getMessages(
+    limit = CONFIG.UI.MESSAGE_LOAD_LIMIT,
+    offset = 0,
+    conversationId = ConversationManager.currentConversationId()
+  ) {
     try {
       const response = await this.get(CONFIG.API.ENDPOINTS.MESSAGES, {
         limit,
         offset,
+        conversationId,
       });
 
       if (response && response.success) {
@@ -126,11 +131,16 @@ const API = {
   },
 
   // 发送文本消息
-  async sendMessage(content, deviceId) {
+  async sendMessage(
+    content,
+    deviceId,
+    conversationId = ConversationManager.currentConversationId()
+  ) {
     try {
       const response = await this.post(CONFIG.API.ENDPOINTS.MESSAGES, {
         content,
         deviceId,
+        conversationId,
       });
 
       if (response.success) {
@@ -145,12 +155,18 @@ const API = {
   },
 
   // 发送AI消息
-  async sendAIMessage(content, deviceId = "ai-system", type = "ai_response") {
+  async sendAIMessage(
+    content,
+    deviceId = "ai-system",
+    type = "ai_response",
+    conversationId = ConversationManager.currentConversationId()
+  ) {
     try {
       const response = await this.post("/api/ai/message", {
         content,
         deviceId,
         type,
+        conversationId,
       });
 
       if (response && response.success) {
@@ -178,6 +194,7 @@ const API = {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("deviceId", deviceId);
+      formData.append("conversationId", ConversationManager.currentConversationId());
 
       // 如果需要进度回调，可以使用XMLHttpRequest
       if (onProgress) {
@@ -557,11 +574,23 @@ const API = {
     }
   },
 
+  async clearConversation(conversationId = ConversationManager.currentConversationId()) {
+    const response = await this.request(
+      `/api/conversations/${conversationId}/messages`,
+      { method: "DELETE" }
+    );
+    if (!response.success) throw new Error(response.error || response.message || "清空聊天记录失败");
+    return response.data;
+  },
+
   // 删除单条消息
-  async deleteMessage(messageId) {
+  async deleteMessage(
+    messageId,
+    conversationId = ConversationManager.currentConversationId()
+  ) {
     try {
       const response = await this.delete(
-        `${CONFIG.API.ENDPOINTS.MESSAGES}/${messageId}`
+        `${CONFIG.API.ENDPOINTS.MESSAGES}/${messageId}?conversationId=${conversationId}`
       );
 
       if (response.success) {

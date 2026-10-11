@@ -93,9 +93,6 @@ const SearchUI = {
                             </select>
                         </div>
 
-                        <button class="search-filter-toggle" id="searchFilterToggle">
-                            筛选 <span class="toggle-icon">▼</span>
-                        </button>
                     </div>
 
                     <!-- 搜索建议/历史 -->
@@ -190,14 +187,6 @@ const SearchUI = {
         if (timeFilter) {
             timeFilter.addEventListener('change', () => {
                 this.updateFilters();
-            });
-        }
-
-        // 过滤器展开/收起
-        const filterToggle = document.getElementById('searchFilterToggle');
-        if (filterToggle) {
-            filterToggle.addEventListener('click', () => {
-                this.toggleFilters();
             });
         }
 
@@ -647,19 +636,6 @@ const SearchUI = {
         }
     },
 
-    // 切换过滤器显示
-    toggleFilters() {
-        const filters = document.getElementById('searchFilters');
-        const toggle = document.getElementById('searchFilterToggle');
-        
-        if (filters && toggle) {
-            filters.classList.toggle('expanded');
-            const icon = toggle.querySelector('.toggle-icon');
-            if (icon) {
-                icon.textContent = filters.classList.contains('expanded') ? '▲' : '▼';
-            }
-        }
-    }
 };
 
 // 导出到全局
@@ -670,4 +646,4 @@ if (typeof window !== 'undefined') {
 // 模块导出
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = SearchUI;
-} 
+}

@@ -2,7 +2,10 @@ version: "3.8"
 
 services:
   wxchat:
-    image: yilan666/wxchat:latest
+    image: wxchat:local
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     container_name: wxchat
     restart: unless-stopped
     ports:

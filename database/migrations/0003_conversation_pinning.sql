@@ -1,0 +1,2 @@
+ALTER TABLE conversations
+ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0;

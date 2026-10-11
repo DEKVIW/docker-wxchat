@@ -11,8 +11,7 @@
   },
   "dependencies": {
     "@cloudflare/kv-asset-handler": "^0.3.0",
-    "hono": "^3.12.0",
-    "swiper": "^11.2.10"
+    "hono": "^3.12.0"
   },
   "devDependencies": {
     "wrangler": "^3.0.0"
