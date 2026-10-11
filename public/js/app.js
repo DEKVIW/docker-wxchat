@@ -129,6 +129,7 @@ class WeChatApp {
     let frameId = null;
     let lastViewportHeight = 0;
     let lastViewportOffsetTop = 0;
+    let lastViewportOffsetLeft = 0;
     let lastKeyboardHeight = 0;
 
     const resetMobileDocumentScroll = () => {
@@ -170,6 +171,7 @@ class WeChatApp {
       return {
         viewportHeight,
         viewportOffsetTop,
+        viewportOffsetLeft: viewport?.offsetLeft || 0,
         keyboardHeight,
       };
     };
@@ -178,9 +180,12 @@ class WeChatApp {
       frameId = null;
       const nextState = getViewportState();
 
-      const viewportHeight = Math.round(nextState.viewportHeight);
-      const viewportOffsetTop = Math.round(nextState.viewportOffsetTop);
-      const keyboardHeight = Math.round(nextState.keyboardHeight);
+      const viewportHeight = Number(nextState.viewportHeight.toFixed(3));
+      const viewportOffsetTop = Number(nextState.viewportOffsetTop.toFixed(3));
+      const viewportOffsetLeft = Number(
+        nextState.viewportOffsetLeft.toFixed(3)
+      );
+      const keyboardHeight = Number(nextState.keyboardHeight.toFixed(3));
 
       if (viewportHeight !== lastViewportHeight) {
         root.style.setProperty("--wx-viewport-height", `${viewportHeight}px`);
@@ -200,6 +205,21 @@ class WeChatApp {
         );
         lastViewportOffsetTop = viewportOffsetTop;
       }
+
+      if (viewportOffsetLeft !== lastViewportOffsetLeft) {
+        root.style.setProperty(
+          "--wx-viewport-offset-left",
+          `${viewportOffsetLeft}px`
+        );
+        lastViewportOffsetLeft = viewportOffsetLeft;
+      }
+
+      const isMessageEditing =
+        messageText && document.activeElement === messageText;
+      root.classList.toggle(
+        "wx-keyboard-open",
+        keyboardHeight > 80 || isMessageEditing
+      );
     };
 
     const scheduleUpdate = () => {
@@ -231,13 +251,16 @@ class WeChatApp {
 
     if (messageText) {
       messageText.addEventListener("focus", () => {
+        root.classList.add("wx-keyboard-open");
         resetMobileDocumentScroll();
-        window.requestAnimationFrame(resetMobileDocumentScroll);
-        window.setTimeout(resetMobileDocumentScroll, 120);
-        window.setTimeout(resetMobileDocumentScroll, 360);
+        window.requestAnimationFrame(() => {
+          resetMobileDocumentScroll();
+          scheduleUpdate();
+        });
         scheduleUpdate();
       });
       messageText.addEventListener("blur", () => {
+        root.classList.remove("wx-keyboard-open");
         scheduleUpdate();
       });
 

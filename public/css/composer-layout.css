@@ -6,6 +6,11 @@
   min-height: 0;
 }
 
+.chat-container {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
 .message-list {
   scroll-behavior: auto;
 }
@@ -444,7 +449,8 @@ body.aux-panel-open .input-container {
 /* 桌面端：工具栏、文本区、发送按钮符合 PC 微信的垂直分区。 */
 @media (min-width: 721px) {
   .input-container {
-    flex-basis: 184px;
+    height: 184px;
+    min-height: 184px;
     padding: 0 24px 14px;
   }
 
@@ -571,12 +577,9 @@ body.aux-panel-open .input-container {
   html,
   body {
     position: fixed;
-    top: var(--wx-viewport-offset-top, 0px);
-    right: 0;
-    bottom: auto;
-    left: 0;
+    inset: 0;
     width: 100%;
-    height: var(--wx-viewport-height, 100dvh);
+    height: 100%;
     min-height: 0;
     overflow: hidden;
     overscroll-behavior: none;
@@ -584,14 +587,19 @@ body.aux-panel-open .input-container {
 
   .app {
     position: fixed;
-    top: var(--wx-viewport-offset-top, 0px);
+    top: 0;
     right: 0;
-    bottom: auto;
     left: 0;
     width: 100%;
     height: var(--wx-viewport-height, 100dvh);
     max-height: var(--wx-viewport-height, 100dvh);
     overflow: hidden;
+    transform: translate3d(
+      var(--wx-viewport-offset-left, 0px),
+      var(--wx-viewport-offset-top, 0px),
+      0
+    );
+    will-change: height, transform;
   }
 
   .app-main,
@@ -600,10 +608,19 @@ body.aux-panel-open .input-container {
     max-height: none;
   }
 
+  .chat-container {
+    grid-template-rows: 56px minmax(0, 1fr) auto;
+  }
+
   .input-container {
     padding: 0 max(6px, env(safe-area-inset-right))
-      calc(6px + var(--wx-safe-bottom)) max(6px, env(safe-area-inset-left));
+      max(6px, calc(6px + var(--wx-safe-bottom) - var(--wx-keyboard-height, 0px)))
+      max(6px, env(safe-area-inset-left));
     background: #f7f7f7;
+  }
+
+  :root.wx-keyboard-open .input-container {
+    padding-bottom: 6px;
   }
 
   .message-input {
