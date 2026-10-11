@@ -20,7 +20,12 @@ const FileUpload = {
     // 点击文件按钮
     if (fileButton) {
       const openFilePicker = () => {
-        if (fileInput) fileInput.click();
+        if (!fileInput) return;
+
+        fileInput.value = "";
+        fileInput.setAttribute("accept", "*/*");
+        fileInput.removeAttribute("capture");
+        fileInput.click();
       };
       fileButton.addEventListener("click", (event) => {
         event.preventDefault();
@@ -30,8 +35,14 @@ const FileUpload = {
 
     // 文件选择（支持多文件）
     if (fileInput) {
-      fileInput.addEventListener("change", (e) => {
-        this.handleFileSelect(e.target.files);
+      fileInput.addEventListener("change", async (e) => {
+        try {
+          await this.handleFileSelect(e.target.files);
+        } catch (error) {
+          console.error("文件选择处理失败:", error);
+          UI.showError("文件处理失败，请重试");
+          this.clearFileInput();
+        }
       });
     }
 
@@ -554,6 +565,8 @@ const FileUpload = {
     const fileInput = document.getElementById("fileInput");
     if (fileInput) {
       fileInput.value = "";
+      fileInput.setAttribute("accept", "*/*");
+      fileInput.removeAttribute("capture");
       // 确保支持多文件选择
       if (!fileInput.hasAttribute("multiple")) {
         fileInput.setAttribute("multiple", "true");

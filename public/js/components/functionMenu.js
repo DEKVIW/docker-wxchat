@@ -277,7 +277,9 @@ const FunctionMenu = {
     // 触发文件选择
     const fileInput = document.getElementById("fileInput");
     if (fileInput) {
-      fileInput.accept = "image/*";
+      fileInput.value = "";
+      fileInput.setAttribute("accept", "image/*,video/*");
+      fileInput.removeAttribute("capture");
       fileInput.click();
     } else {
       this.showComingSoon("相册");
@@ -470,7 +472,9 @@ const FunctionMenu = {
     // 触发文件选择
     const fileInput = document.getElementById("fileInput");
     if (fileInput) {
-      fileInput.accept = "*/*";
+      fileInput.value = "";
+      fileInput.setAttribute("accept", "*/*");
+      fileInput.removeAttribute("capture");
       fileInput.click();
     } else {
       this.showComingSoon("文件");
