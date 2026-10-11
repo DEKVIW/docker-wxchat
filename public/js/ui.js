@@ -422,14 +422,16 @@ const UI = {
 
   updateMessageSelectionUI() {
     const messageList = this.elements.messageList;
-    messageList.querySelectorAll("[data-message-id]").forEach((element) => {
+    messageList
+      .querySelectorAll(":scope > [data-message-id]")
+      .forEach((element) => {
       const selected = this.selectedMessageIds.has(
         String(element.dataset.messageId)
       );
       element.classList.toggle("message-selected", selected);
       const check = element.querySelector(".message-select-check");
       if (check) check.setAttribute("aria-checked", String(selected));
-    });
+      });
 
     let toolbar = document.getElementById("messageSelectionToolbar");
     if (!toolbar) {
@@ -467,7 +469,7 @@ const UI = {
 
     if (action === "all") {
       const messageIds = Array.from(
-        this.elements.messageList.querySelectorAll("[data-message-id]")
+        this.elements.messageList.querySelectorAll(":scope > [data-message-id]")
       ).map((element) => String(element.dataset.messageId));
       if (messageIds.length === this.selectedMessageIds.size) {
         this.selectedMessageIds.clear();
@@ -1808,7 +1810,7 @@ const UI = {
     const normalizedMessageId = String(messageId);
     const messageList = this.elements.messageList;
     const messageElement = messageList
-      ? Array.from(messageList.querySelectorAll("[data-message-id]")).find(
+      ? Array.from(messageList.querySelectorAll(":scope > [data-message-id]")).find(
           (element) => element.dataset.messageId === normalizedMessageId
         )
       : null;
