@@ -35,14 +35,20 @@ const FileUpload = {
 
     // 文件选择（支持多文件）
     if (fileInput) {
-      fileInput.addEventListener("change", async (e) => {
-        try {
-          await this.handleFileSelect(e.target.files);
-        } catch (error) {
+      fileInput.addEventListener("change", (e) => {
+        const selectedFiles = Array.from(e.target.files || []);
+        fileInput.value = "";
+        fileInput.setAttribute("accept", "*/*");
+        fileInput.removeAttribute("capture");
+        fileInput.blur();
+
+        if (selectedFiles.length === 0) return;
+
+        this.handleFileSelect(selectedFiles).catch((error) => {
           console.error("文件选择处理失败:", error);
           UI.showError("文件处理失败，请重试");
           this.clearFileInput();
-        }
+        });
       });
     }
 
