@@ -122,6 +122,33 @@ const UI = {
       longPressMessage = null;
     };
 
+    let lastBubbleTouch = null;
+    let lastBubbleTouchTime = 0;
+
+    messageList.addEventListener(
+      "touchstart",
+      (event) => {
+        const bubble = event.target.closest(".chat-bubble");
+        if (!bubble) {
+          lastBubbleTouch = null;
+          lastBubbleTouchTime = 0;
+          return;
+        }
+
+        const now = Date.now();
+        const isDoubleTouch =
+          bubble === lastBubbleTouch && now - lastBubbleTouchTime < 420;
+        lastBubbleTouch = bubble;
+        lastBubbleTouchTime = now;
+
+        if (isDoubleTouch) {
+          event.preventDefault();
+          cancelLongPress();
+        }
+      },
+      { passive: false }
+    );
+
     messageList.addEventListener("contextmenu", (event) => {
       const bubble = event.target.closest(".chat-bubble");
       const messageElement = bubble ? bubble.closest(".chat") : null;

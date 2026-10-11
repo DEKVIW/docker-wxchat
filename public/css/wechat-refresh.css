@@ -532,7 +532,7 @@ select:focus-visible {
 }
 
 body.keyboard-open .app {
-  top: var(--wx-viewport-offset-top);
+  top: 0;
   left: 0;
   right: 0;
   width: 100%;

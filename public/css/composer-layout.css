@@ -605,15 +605,10 @@ body.aux-panel-open .input-container {
     right: 0;
     left: 0;
     width: 100%;
-    height: var(--wx-viewport-height, 100dvh);
-    max-height: var(--wx-viewport-height, 100dvh);
+    height: 100%;
+    max-height: 100%;
     overflow: hidden;
-    transform: translate3d(
-      var(--wx-viewport-offset-left, 0px),
-      var(--wx-viewport-offset-top, 0px),
-      0
-    );
-    will-change: height, transform;
+    transform: none;
   }
 
   .app-main,
@@ -623,23 +618,34 @@ body.aux-panel-open .input-container {
   }
 
   .chat-container {
-    grid-template-rows: 56px minmax(0, 1fr) auto;
+    grid-template-rows: 56px minmax(0, 1fr) 0;
   }
 
   .input-container {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    grid-row: 3;
+    width: 100%;
     padding: 0 max(6px, env(safe-area-inset-right))
-      max(6px, calc(6px + var(--wx-safe-bottom) - var(--wx-keyboard-height, 0px)))
+      max(6px, calc(6px + var(--wx-safe-bottom)))
       max(6px, env(safe-area-inset-left));
     background: #f7f7f7;
-  }
-
-  :root.wx-keyboard-open .input-container {
-    padding-bottom: 6px;
   }
 
   .message-input {
     width: 100%;
     padding: 6px 0;
+  }
+
+  .message-list {
+    padding-bottom: calc(
+      var(--wx-composer-height, 72px) + 18px
+    );
+    scroll-padding-bottom: calc(
+      var(--wx-composer-height, 72px) + 18px
+    );
   }
 
   .input-wrapper {

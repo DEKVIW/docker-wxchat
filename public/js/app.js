@@ -122,70 +122,42 @@ class WeChatApp {
     const root = document.documentElement;
     const virtualKeyboard = navigator.virtualKeyboard;
     const messageText = document.getElementById("messageText");
-    const isIOS =
-      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-    const useVirtualKeyboardApi = Boolean(virtualKeyboard && !isIOS);
+    const composer = document.querySelector(".input-container");
     let frameId = null;
     let lastViewportHeight = 0;
-    let lastViewportOffsetTop = 0;
-    let lastViewportOffsetLeft = 0;
-    let lastKeyboardHeight = 0;
+    let composerFrameId = null;
 
-    const resetMobileDocumentScroll = () => {
-      if (!window.matchMedia("(max-width: 720px)").matches) return;
-
-      if (window.scrollX !== 0 || window.scrollY !== 0) {
-        window.scrollTo(0, 0);
+    const updateComposerHeight = () => {
+      composerFrameId = null;
+      if (!composer || !window.matchMedia("(max-width: 720px)").matches) {
+        return;
       }
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
+
+      const height = Math.ceil(composer.getBoundingClientRect().height);
+      if (height > 0) {
+        root.style.setProperty("--wx-composer-height", `${height}px`);
+      }
     };
 
-    const getViewportState = () => {
+    const scheduleComposerHeight = () => {
+      if (composerFrameId === null) {
+        composerFrameId = window.requestAnimationFrame(updateComposerHeight);
+      }
+    };
+
+    const getViewportHeight = () => {
       const viewport = window.visualViewport;
-      const layoutHeight = Math.max(
-        document.documentElement.clientHeight || 0,
-        window.innerHeight || 0
+      return (
+        (viewport && viewport.height) ||
+        window.innerHeight ||
+        document.documentElement.clientHeight ||
+        0
       );
-      const viewportHeight =
-        (viewport && viewport.height) || window.innerHeight || layoutHeight;
-      const viewportOffsetTop = (viewport && viewport.offsetTop) || 0;
-      const viewportBottom = viewportOffsetTop + viewportHeight;
-      const visualKeyboardHeight = Math.max(0, layoutHeight - viewportBottom);
-      const keyboardRect = useVirtualKeyboardApi
-        ? virtualKeyboard.boundingRect
-        : null;
-      const apiKeyboardHeight = (keyboardRect && keyboardRect.height) || 0;
-      const apiBottomInset = keyboardRect && keyboardRect.height
-        ? Math.max(0, layoutHeight - keyboardRect.y)
-        : 0;
-      const keyboardHeight = useVirtualKeyboardApi
-        ? Math.max(
-            apiKeyboardHeight,
-            apiBottomInset,
-            visualKeyboardHeight,
-          )
-        : visualKeyboardHeight;
-
-      return {
-        viewportHeight,
-        viewportOffsetTop,
-        viewportOffsetLeft: (viewport && viewport.offsetLeft) || 0,
-        keyboardHeight,
-      };
     };
 
-    const updateKeyboardState = () => {
+    const updateViewportState = () => {
       frameId = null;
-      const nextState = getViewportState();
-
-      const viewportHeight = Number(nextState.viewportHeight.toFixed(3));
-      const viewportOffsetTop = Number(nextState.viewportOffsetTop.toFixed(3));
-      const viewportOffsetLeft = Number(
-        nextState.viewportOffsetLeft.toFixed(3)
-      );
-      const keyboardHeight = Number(nextState.keyboardHeight.toFixed(3));
+      const viewportHeight = Number(getViewportHeight().toFixed(3));
 
       if (viewportHeight !== lastViewportHeight) {
         root.style.setProperty("--wx-viewport-height", `${viewportHeight}px`);
@@ -193,42 +165,22 @@ class WeChatApp {
         lastViewportHeight = viewportHeight;
       }
 
-      if (keyboardHeight !== lastKeyboardHeight) {
-        root.style.setProperty("--wx-keyboard-height", `${keyboardHeight}px`);
-        lastKeyboardHeight = keyboardHeight;
-      }
-
-      if (viewportOffsetTop !== lastViewportOffsetTop) {
-        root.style.setProperty(
-          "--wx-viewport-offset-top",
-          `${viewportOffsetTop}px`
-        );
-        lastViewportOffsetTop = viewportOffsetTop;
-      }
-
-      if (viewportOffsetLeft !== lastViewportOffsetLeft) {
-        root.style.setProperty(
-          "--wx-viewport-offset-left",
-          `${viewportOffsetLeft}px`
-        );
-        lastViewportOffsetLeft = viewportOffsetLeft;
-      }
-
       const isMessageEditing =
         messageText && document.activeElement === messageText;
-      root.classList.toggle(
-        "wx-keyboard-open",
-        keyboardHeight > 80 || isMessageEditing
-      );
+      scheduleComposerHeight();
+      root.classList.toggle("wx-keyboard-open", Boolean(isMessageEditing));
     };
 
     const scheduleUpdate = () => {
       if (frameId === null) {
-        frameId = window.requestAnimationFrame(updateKeyboardState);
+        frameId = window.requestAnimationFrame(updateViewportState);
       }
     };
 
     window.addEventListener("resize", scheduleUpdate, {
+      passive: true,
+    });
+    window.addEventListener("resize", scheduleComposerHeight, {
       passive: true,
     });
     window.addEventListener("orientationchange", () => {
@@ -240,23 +192,29 @@ class WeChatApp {
       window.visualViewport.addEventListener("resize", scheduleUpdate, {
         passive: true,
       });
-      window.visualViewport.addEventListener("scroll", scheduleUpdate, {
-        passive: true,
-      });
     }
 
     if (virtualKeyboard) {
       virtualKeyboard.addEventListener("geometrychange", scheduleUpdate);
     }
 
+    if (composer && typeof ResizeObserver === "function") {
+      const composerObserver = new ResizeObserver(scheduleComposerHeight);
+      composerObserver.observe(composer);
+    } else if (composer && typeof MutationObserver === "function") {
+      const composerObserver = new MutationObserver(scheduleComposerHeight);
+      composerObserver.observe(composer, {
+        attributes: true,
+        childList: true,
+        subtree: true,
+      });
+    }
+
     if (messageText) {
+      messageText.addEventListener("input", scheduleComposerHeight);
       messageText.addEventListener("focus", () => {
         root.classList.add("wx-keyboard-open");
-        resetMobileDocumentScroll();
-        window.requestAnimationFrame(() => {
-          resetMobileDocumentScroll();
-          scheduleUpdate();
-        });
+        scheduleComposerHeight();
         scheduleUpdate();
       });
       messageText.addEventListener("blur", () => {
@@ -266,19 +224,19 @@ class WeChatApp {
 
       const messageList = document.getElementById("messageList");
       if (messageList) {
-        messageList.addEventListener(
-          "pointerdown",
-          () => {
-            if (document.activeElement === messageText) {
-              messageText.blur();
-            }
-          },
-          { passive: true }
-        );
+        const blurMessageInput = () => {
+          if (document.activeElement === messageText) messageText.blur();
+        };
+        const blurEventName = window.PointerEvent
+          ? "pointerdown"
+          : "touchstart";
+        messageList.addEventListener(blurEventName, blurMessageInput, {
+          passive: true,
+        });
       }
     }
 
-    updateKeyboardState();
+    updateViewportState();
   }
 
   // 检查浏览器兼容性
