@@ -123,9 +123,12 @@ class WeChatApp {
     const virtualKeyboard = navigator.virtualKeyboard;
     const messageText = document.getElementById("messageText");
     const composer = document.querySelector(".input-container");
+    const messageList = document.getElementById("messageList");
     let frameId = null;
     let lastViewportHeight = 0;
     let composerFrameId = null;
+    let preserveMessageBottom = false;
+    let adjustingMessageScroll = false;
 
     const updateComposerHeight = () => {
       composerFrameId = null;
@@ -143,6 +146,30 @@ class WeChatApp {
       if (composerFrameId === null) {
         composerFrameId = window.requestAnimationFrame(updateComposerHeight);
       }
+    };
+
+    const isMessageListAtBottom = () => {
+      if (!messageList) return false;
+      return (
+        messageList.scrollTop + messageList.clientHeight >=
+        messageList.scrollHeight - 12
+      );
+    };
+
+    const pinMessageListToBottom = () => {
+      if (!messageList || !preserveMessageBottom) return;
+
+      const nextScrollTop = Math.max(
+        0,
+        messageList.scrollHeight - messageList.clientHeight
+      );
+      if (Math.abs(messageList.scrollTop - nextScrollTop) < 1) return;
+
+      adjustingMessageScroll = true;
+      messageList.scrollTop = nextScrollTop;
+      window.requestAnimationFrame(() => {
+        adjustingMessageScroll = false;
+      });
     };
 
     const getViewportHeight = () => {
@@ -169,6 +196,7 @@ class WeChatApp {
         messageText && document.activeElement === messageText;
       scheduleComposerHeight();
       root.classList.toggle("wx-keyboard-open", Boolean(isMessageEditing));
+      pinMessageListToBottom();
     };
 
     const scheduleUpdate = () => {
@@ -210,20 +238,41 @@ class WeChatApp {
       });
     }
 
+    if (messageList && typeof ResizeObserver === "function") {
+      const messageListObserver = new ResizeObserver(pinMessageListToBottom);
+      messageListObserver.observe(messageList);
+    }
+
     if (messageText) {
       messageText.addEventListener("input", scheduleComposerHeight);
       messageText.addEventListener("focus", () => {
+        preserveMessageBottom = isMessageListAtBottom();
         root.classList.add("wx-keyboard-open");
         scheduleComposerHeight();
         scheduleUpdate();
+        pinMessageListToBottom();
       });
       messageText.addEventListener("blur", () => {
+        preserveMessageBottom = false;
         root.classList.remove("wx-keyboard-open");
         scheduleUpdate();
       });
 
-      const messageList = document.getElementById("messageList");
       if (messageList) {
+        messageList.addEventListener(
+          "scroll",
+          () => {
+            if (
+              preserveMessageBottom &&
+              !adjustingMessageScroll &&
+              !isMessageListAtBottom()
+            ) {
+              preserveMessageBottom = false;
+            }
+          },
+          { passive: true }
+        );
+
         const blurMessageInput = () => {
           if (document.activeElement === messageText) messageText.blur();
         };

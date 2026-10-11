@@ -629,14 +629,19 @@ body.aux-panel-open .input-container {
     grid-row: 3;
     width: 100%;
     padding: 0 max(6px, env(safe-area-inset-right))
-      max(6px, calc(6px + var(--wx-safe-bottom)))
+      max(2px, var(--wx-safe-bottom))
       max(6px, env(safe-area-inset-left));
     background: #f7f7f7;
   }
 
+  :root.wx-keyboard-open .input-container,
+  body.aux-panel-open .input-container {
+    padding-bottom: 2px;
+  }
+
   .message-input {
     width: 100%;
-    padding: 6px 0;
+    padding: 2px 0;
   }
 
   .message-list {
