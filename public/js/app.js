@@ -149,15 +149,15 @@ class WeChatApp {
         window.innerHeight || 0
       );
       const viewportHeight =
-        viewport?.height || window.innerHeight || layoutHeight;
-      const viewportOffsetTop = viewport?.offsetTop || 0;
+        (viewport && viewport.height) || window.innerHeight || layoutHeight;
+      const viewportOffsetTop = (viewport && viewport.offsetTop) || 0;
       const viewportBottom = viewportOffsetTop + viewportHeight;
       const visualKeyboardHeight = Math.max(0, layoutHeight - viewportBottom);
       const keyboardRect = useVirtualKeyboardApi
         ? virtualKeyboard.boundingRect
         : null;
-      const apiKeyboardHeight = keyboardRect?.height || 0;
-      const apiBottomInset = keyboardRect?.height
+      const apiKeyboardHeight = (keyboardRect && keyboardRect.height) || 0;
+      const apiBottomInset = keyboardRect && keyboardRect.height
         ? Math.max(0, layoutHeight - keyboardRect.y)
         : 0;
       const keyboardHeight = useVirtualKeyboardApi
@@ -171,7 +171,7 @@ class WeChatApp {
       return {
         viewportHeight,
         viewportOffsetTop,
-        viewportOffsetLeft: viewport?.offsetLeft || 0,
+        viewportOffsetLeft: (viewport && viewport.offsetLeft) || 0,
         keyboardHeight,
       };
     };
@@ -265,15 +265,17 @@ class WeChatApp {
       });
 
       const messageList = document.getElementById("messageList");
-      messageList?.addEventListener(
-        "pointerdown",
-        () => {
-          if (document.activeElement === messageText) {
-            messageText.blur();
-          }
-        },
-        { passive: true }
-      );
+      if (messageList) {
+        messageList.addEventListener(
+          "pointerdown",
+          () => {
+            if (document.activeElement === messageText) {
+              messageText.blur();
+            }
+          },
+          { passive: true }
+        );
+      }
     }
 
     updateKeyboardState();
@@ -335,7 +337,7 @@ class WeChatApp {
       );
       UI.showSlideToConfirmModal({
         title: "清空当前聊天",
-        message: `只清空“${conversation?.name || "当前会话"}”中的消息和文件，此操作不可撤销。`,
+        message: `只清空“${(conversation && conversation.name) || "当前会话"}”中的消息和文件，此操作不可撤销。`,
         onConfirm: async () => {
           try {
             await MessageHandler.clearAllMessages();

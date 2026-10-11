@@ -36,6 +36,20 @@
   transition: none;
 }
 
+/* 保留真实文件控件的可唤起能力，避免 iOS 12 对 display:none 的限制。 */
+.file-input-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  opacity: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .message-input {
   display: block;
   width: 100%;
@@ -724,6 +738,7 @@ body.aux-panel-open .input-container {
     inset: auto;
     z-index: 1;
     width: 100%;
+    max-height: min(390px, 45vh);
     max-height: min(390px, 45dvh);
     border-right: 0;
     border-left: 0;
@@ -742,6 +757,7 @@ body.aux-panel-open .input-container {
   }
 
   .emoji-picker-content {
+    max-height: min(390px, 45vh);
     max-height: min(390px, 45dvh);
     padding: 12px 9px calc(14px + var(--wx-safe-bottom));
   }

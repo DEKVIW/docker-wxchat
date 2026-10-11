@@ -302,8 +302,16 @@ const FunctionMenu = {
     const messageText = document.getElementById("messageText");
     if (messageText) {
       this.inputSelection = {
-        start: messageText.selectionStart ?? messageText.value.length,
-        end: messageText.selectionEnd ?? messageText.value.length,
+        start:
+          messageText.selectionStart !== null &&
+          messageText.selectionStart !== undefined
+            ? messageText.selectionStart
+            : messageText.value.length,
+        end:
+          messageText.selectionEnd !== null &&
+          messageText.selectionEnd !== undefined
+            ? messageText.selectionEnd
+            : messageText.value.length,
       };
       messageText.blur();
     }
@@ -624,8 +632,15 @@ const FunctionMenu = {
 
     const currentValue = messageText.value;
     const savedSelection = this.inputSelection || {};
-    const cursorStart = messageText.selectionStart ?? currentValue.length;
-    const cursorEnd = messageText.selectionEnd ?? cursorStart;
+    const cursorStart =
+      messageText.selectionStart !== null &&
+      messageText.selectionStart !== undefined
+        ? messageText.selectionStart
+        : currentValue.length;
+    const cursorEnd =
+      messageText.selectionEnd !== null && messageText.selectionEnd !== undefined
+        ? messageText.selectionEnd
+        : cursorStart;
     const selectionStart = Number.isInteger(savedSelection.start)
       ? savedSelection.start
       : cursorStart;

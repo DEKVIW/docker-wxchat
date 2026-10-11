@@ -134,11 +134,13 @@ const Auth = {
     }
 
     const passwordInput = document.getElementById("passwordInput");
-    const password = passwordInput?.value?.trim();
+    const password = passwordInput && passwordInput.value
+      ? passwordInput.value.trim()
+      : "";
 
     if (!password) {
       this.showError("请输入密码");
-      passwordInput?.focus();
+      if (passwordInput) passwordInput.focus();
       return;
     }
 

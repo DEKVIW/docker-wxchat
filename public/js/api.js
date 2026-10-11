@@ -120,7 +120,9 @@ const API = {
       if (response && response.success) {
         return response.data || [];
       } else {
-        throw new Error(response?.error || CONFIG.ERRORS.LOAD_MESSAGES_FAILED);
+        throw new Error(
+          (response && response.error) || CONFIG.ERRORS.LOAD_MESSAGES_FAILED
+        );
       }
     } catch (error) {
       console.error("获取消息失败:", error);
@@ -172,7 +174,7 @@ const API = {
       if (response && response.success) {
         return response.data;
       } else {
-        throw new Error(response?.error || "AI消息发送失败");
+        throw new Error((response && response.error) || "AI消息发送失败");
       }
     } catch (error) {
       throw error;

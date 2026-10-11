@@ -20,19 +20,20 @@ const FileUpload = {
     // 点击文件按钮
     if (fileButton) {
       const openFilePicker = () => {
-        fileInput.click();
+        if (fileInput) fileInput.click();
       };
-      if (window.UI && typeof UI.bindPressAction === "function") {
-        UI.bindPressAction(fileButton, openFilePicker);
-      } else {
-        fileButton.addEventListener("click", openFilePicker);
-      }
+      fileButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        openFilePicker();
+      });
     }
 
     // 文件选择（支持多文件）
-    fileInput.addEventListener("change", (e) => {
-      this.handleFileSelect(e.target.files);
-    });
+    if (fileInput) {
+      fileInput.addEventListener("change", (e) => {
+        this.handleFileSelect(e.target.files);
+      });
+    }
 
     // 全局拖拽事件
     document.addEventListener("dragenter", this.handleDragEnter.bind(this));
@@ -129,7 +130,7 @@ const FileUpload = {
 
   // 处理剪贴板粘贴
   async handlePaste(e) {
-    const items = e.clipboardData?.items;
+    const items = e.clipboardData && e.clipboardData.items;
     if (!items) return;
 
     const files = [];
@@ -219,8 +220,9 @@ const FileUpload = {
         }
 
         fileIcons.push(icon);
+        const itemFile = item.getAsFile ? item.getAsFile() : null;
         fileTypes.add(
-          this.getFileTypeCategory(item.type, item.getAsFile?.()?.name)
+          this.getFileTypeCategory(item.type, itemFile && itemFile.name)
         );
       }
     }

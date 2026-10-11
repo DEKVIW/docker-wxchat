@@ -18,13 +18,18 @@ const ConversationManager = {
 
   async refresh() {
     const result = await API.get("/api/conversations");
-    if (!result?.success || !Array.isArray(result.data)) {
-      throw new Error(result?.error || result?.message || "聊天列表加载失败");
+    if (!result || !result.success || !Array.isArray(result.data)) {
+      throw new Error(
+        (result && (result.error || result.message)) || "聊天列表加载失败"
+      );
     }
     this.conversations = result.data;
     if (!this.conversations.some((item) => Number(item.id) === this.activeId)) {
       const defaultConversation = this.conversations.find((item) => item.is_default);
-      this.activeId = Number(defaultConversation?.id || this.conversations[0]?.id || 1);
+      const defaultId = defaultConversation && defaultConversation.id;
+      const firstConversation = this.conversations[0];
+      const firstId = firstConversation && firstConversation.id;
+      this.activeId = Number(defaultId || firstId || 1);
       localStorage.setItem("wxchat_current_conversation_id", this.activeId);
     }
     this.render();
@@ -32,28 +37,39 @@ const ConversationManager = {
   },
 
   bindEvents() {
-    document.getElementById("createConversation")?.addEventListener("click", () => {
-      this.createConversation();
-    });
-    document.getElementById("conversationToggle")?.addEventListener("click", () => {
-      this.openDrawer();
-    });
-    document.getElementById("conversationOverlay")?.addEventListener("click", () => {
-      this.closeDrawer();
-    });
-    document.getElementById("conversationList")?.addEventListener("click", (event) => {
+    const createConversationButton = document.getElementById("createConversation");
+    const conversationToggle = document.getElementById("conversationToggle");
+    const conversationOverlay = document.getElementById("conversationOverlay");
+    const conversationList = document.getElementById("conversationList");
+
+    if (createConversationButton) {
+      createConversationButton.addEventListener("click", () => {
+        this.createConversation();
+      });
+    }
+    if (conversationToggle) {
+      conversationToggle.addEventListener("click", () => {
+        this.openDrawer();
+      });
+    }
+    if (conversationOverlay) {
+      conversationOverlay.addEventListener("click", () => {
+        this.closeDrawer();
+      });
+    }
+    if (conversationList) conversationList.addEventListener("click", (event) => {
       const actionButton = event.target.closest("[data-conversation-action]");
       const item = event.target.closest("[data-conversation-id]");
       if (!item) return;
       const conversationId = Number(item.dataset.conversationId);
-      if (actionButton?.dataset.conversationAction === "menu") {
+      if (actionButton && actionButton.dataset.conversationAction === "menu") {
         event.stopPropagation();
         this.openConversationMenu(conversationId, actionButton);
         return;
       }
       this.selectConversation(conversationId);
     });
-    document.getElementById("conversationList")?.addEventListener("contextmenu", (event) => {
+    if (conversationList) conversationList.addEventListener("contextmenu", (event) => {
       const item = event.target.closest("[data-conversation-id]");
       if (!item) return;
       event.preventDefault();
@@ -62,7 +78,7 @@ const ConversationManager = {
         y: event.clientY,
       });
     });
-    document.getElementById("conversationList")?.addEventListener("keydown", (event) => {
+    if (conversationList) conversationList.addEventListener("keydown", (event) => {
       const item = event.target.closest("[data-conversation-id]");
       if (!item) return;
       if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
@@ -168,7 +184,8 @@ const ConversationManager = {
       </button>
     `;
     menu.addEventListener("click", async (event) => {
-      const action = event.target.closest("[data-menu-action]")?.dataset.menuAction;
+      const actionButton = event.target.closest("[data-menu-action]");
+      const action = actionButton && actionButton.dataset.menuAction;
       if (!action) return;
       event.stopPropagation();
       this.closeConversationMenu();
@@ -178,29 +195,35 @@ const ConversationManager = {
     });
     document.body.appendChild(menu);
     this.menuElement = menu;
-    const trigger = anchor?.matches?.("[data-conversation-action='menu']") ? anchor : null;
+    const trigger =
+      anchor && anchor.matches && anchor.matches("[data-conversation-action='menu']")
+        ? anchor
+        : null;
     if (trigger) trigger.setAttribute("aria-expanded", "true");
 
-    const rect = anchor?.getBoundingClientRect();
+    const rect = anchor && anchor.getBoundingClientRect
+      ? anchor.getBoundingClientRect()
+      : null;
     const menuRect = menu.getBoundingClientRect();
-    const x = point?.x ?? rect?.right ?? 0;
+    const x = (point && point.x) || (rect && rect.right) || 0;
     let left = x - menuRect.width;
     left = Math.max(8, Math.min(left, window.innerWidth - menuRect.width - 8));
-    let top = point?.y ?? rect?.bottom ?? 0;
+    let top = (point && point.y) || (rect && rect.bottom) || 0;
     if (top + menuRect.height > window.innerHeight - 8) {
-      top = (rect?.top ?? top) - menuRect.height - 6;
+      top = ((rect && rect.top) || top) - menuRect.height - 6;
     } else if (!point) {
       top += 6;
     }
     menu.style.left = `${left}px`;
     menu.style.top = `${Math.max(8, top)}px`;
-    menu.querySelector("button:not(:disabled)")?.focus({ preventScroll: true });
+    const firstButton = menu.querySelector("button:not(:disabled)");
+    if (firstButton) firstButton.focus({ preventScroll: true });
   },
 
   closeConversationMenu() {
     if (!this.menuElement) return;
     const trigger = document.querySelector("[data-conversation-action='menu'][aria-expanded='true']");
-    trigger?.setAttribute("aria-expanded", "false");
+    if (trigger) trigger.setAttribute("aria-expanded", "false");
     this.menuElement.remove();
     this.menuElement = null;
   },
@@ -232,7 +255,9 @@ const ConversationManager = {
       await this.refresh();
       if (wasActive) {
         MessageHandler.switchConversation(this.activeId);
-        if (window.Realtime?.refreshConversation) window.Realtime.refreshConversation();
+        if (window.Realtime && window.Realtime.refreshConversation) {
+          window.Realtime.refreshConversation();
+        }
       }
     } catch (error) {
       UI.showError(error.message || "删除聊天失败");
@@ -331,7 +356,7 @@ const ConversationManager = {
     }
     this.closeDrawer();
     MessageHandler.switchConversation(nextId);
-    if (window.Realtime?.refreshConversation) {
+    if (window.Realtime && window.Realtime.refreshConversation) {
       Realtime.refreshConversation();
     }
   },

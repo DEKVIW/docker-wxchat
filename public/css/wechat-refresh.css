@@ -11,7 +11,7 @@
   --wx-panel: #f7f7f7;
   --wx-white: #fff;
   --wx-safe-bottom: env(safe-area-inset-bottom, 0px);
-  --wx-viewport-height: 100dvh;
+  --wx-viewport-height: 100vh;
   --wx-viewport-offset-top: 0px;
   --wx-composer-height: 72px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
@@ -947,6 +947,7 @@ body.keyboard-open .message-list {
   position: relative;
   z-index: 1;
   width: min(620px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
   max-height: min(760px, calc(100dvh - 48px));
   overflow: hidden;
   border: 1px solid #dedede;
@@ -959,6 +960,7 @@ body.keyboard-open .message-list {
 
 .search-modal-content {
   display: flex;
+  height: min(760px, calc(100vh - 48px));
   height: min(760px, calc(100dvh - 48px));
   flex-direction: column;
 }
@@ -1264,6 +1266,7 @@ body.keyboard-open .message-list {
   inset: 0;
   width: min(360px, calc(100vw - 32px));
   height: max-content;
+  max-height: calc(100vh - 32px);
   max-height: calc(100dvh - 32px);
   margin: auto;
   padding: 0;

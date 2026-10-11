@@ -147,8 +147,8 @@ const MessageHandler = {
           conversationId
         );
         if (loadGeneration !== this.loadGeneration) return;
-        const lastMessageId =
-          this.lastMessages[this.lastMessages.length - 1]?.id;
+        const lastMessage = this.lastMessages[this.lastMessages.length - 1];
+        const lastMessageId = lastMessage && lastMessage.id;
 
         // 找到最后一条已加载消息在完整列表中的位置
         const lastIndex = allMessages.findIndex((m) => m.id === lastMessageId);

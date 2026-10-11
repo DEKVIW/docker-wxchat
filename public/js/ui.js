@@ -38,16 +38,27 @@ const UI = {
     const isTouchPointer = (event) =>
       event.pointerType === "touch" || event.pointerType === "pen";
 
-    button.addEventListener(
-      "pointerdown",
-      (event) => {
-        if (!isTouchPointer(event)) return;
-        event.preventDefault();
-        touchHandled = true;
-        action(event);
-      },
-      { passive: false }
-    );
+    const handleTouchStart = (event) => {
+      event.preventDefault();
+      touchHandled = true;
+      action(event);
+    };
+
+    if (window.PointerEvent) {
+      button.addEventListener(
+        "pointerdown",
+        (event) => {
+          if (!isTouchPointer(event)) return;
+          handleTouchStart(event);
+        },
+        { passive: false }
+      );
+    } else {
+      // iOS 12 Safari 没有 Pointer Events，必须在 touchstart 阶段处理。
+      button.addEventListener("touchstart", handleTouchStart, {
+        passive: false,
+      });
+    }
 
     button.addEventListener("click", (event) => {
       event.preventDefault();
@@ -113,7 +124,7 @@ const UI = {
 
     messageList.addEventListener("contextmenu", (event) => {
       const bubble = event.target.closest(".chat-bubble");
-      const messageElement = bubble?.closest(".chat");
+      const messageElement = bubble ? bubble.closest(".chat") : null;
       if (!messageElement) return;
 
       event.preventDefault();
@@ -125,7 +136,7 @@ const UI = {
       (event) => {
         if (event.pointerType !== "touch") return;
         const bubble = event.target.closest(".chat-bubble");
-        const messageElement = bubble?.closest(".chat");
+        const messageElement = bubble ? bubble.closest(".chat") : null;
         if (!messageElement) return;
 
         cancelLongPress();
@@ -194,14 +205,13 @@ const UI = {
   },
 
   closeMessageActions() {
-    this.elements.messageList
-      ?.querySelectorAll(".message-actions-open")
-      .forEach((messageElement) => {
-        messageElement.classList.remove("message-actions-open");
-        messageElement
-          .querySelector(".message-actions")
-          ?.setAttribute("aria-hidden", "true");
-      });
+    const messageList = this.elements.messageList;
+    if (!messageList) return;
+    messageList.querySelectorAll(".message-actions-open").forEach((messageElement) => {
+      messageElement.classList.remove("message-actions-open");
+      const actions = messageElement.querySelector(".message-actions");
+      if (actions) actions.setAttribute("aria-hidden", "true");
+    });
   },
 
   // 自动调整文本框高度
@@ -993,7 +1003,9 @@ const UI = {
     }
 
     const headerStatus = document.querySelector(".chat-header-copy > span");
-    const headerStatusLabel = headerStatus?.querySelector(".chat-status-label");
+    const headerStatusLabel = headerStatus
+      ? headerStatus.querySelector(".chat-status-label")
+      : null;
     const statusLabels = {
       connected: "已连接",
       connecting: "连接中...",
@@ -1468,12 +1480,12 @@ const UI = {
   // 带进度显示的文件下载
   async downloadFileWithProgress(r2Key, fileName, progressId) {
     const progressElement = document.getElementById(`progress-${progressId}`);
-    const progressFill = progressElement?.querySelector(
-      ".download-progress-fill"
-    );
-    const progressText = progressElement?.querySelector(
-      ".download-progress-text"
-    );
+    const progressFill = progressElement
+      ? progressElement.querySelector(".download-progress-fill")
+      : null;
+    const progressText = progressElement
+      ? progressElement.querySelector(".download-progress-text")
+      : null;
     const speedElement = document.getElementById(`speed-${progressId}`);
 
     if (!progressElement || !progressFill || !progressText) {
@@ -1567,12 +1579,12 @@ const UI = {
     const progressElement = document.getElementById(
       `img-progress-${progressId}`
     );
-    const progressFill = progressElement?.querySelector(
-      ".image-download-progress-fill"
-    );
-    const progressText = progressElement?.querySelector(
-      ".image-download-progress-text"
-    );
+    const progressFill = progressElement
+      ? progressElement.querySelector(".image-download-progress-fill")
+      : null;
+    const progressText = progressElement
+      ? progressElement.querySelector(".image-download-progress-text")
+      : null;
     const speedElement = document.getElementById(`img-speed-${progressId}`);
 
     if (!progressElement || !progressFill || !progressText) {

@@ -82,27 +82,33 @@ const AIAPI = {
 
             try {
               const parsed = JSON.parse(data);
-              const content = parsed.choices?.[0]?.delta?.content || "";
+              const firstChoice = parsed.choices && parsed.choices[0];
+              const delta = firstChoice && firstChoice.delta;
+              const content = (delta && delta.content) || "";
 
               if (content) {
                 // 检测思考过程标签
                 if (content.includes("<think>")) {
                   isInThinking = true;
                   thinking += content;
-                  callbacks.onThinking?.(thinking);
+                  if (callbacks.onThinking) callbacks.onThinking(thinking);
                 } else if (content.includes("</think>")) {
                   isInThinking = false;
                   thinking += content;
-                  callbacks.onThinking?.(thinking);
-                  callbacks.onThinkingComplete?.(thinking);
+                  if (callbacks.onThinking) callbacks.onThinking(thinking);
+                  if (callbacks.onThinkingComplete) {
+                    callbacks.onThinkingComplete(thinking);
+                  }
                 } else if (isInThinking) {
                   // 在思考过程中
                   thinking += content;
-                  callbacks.onThinking?.(thinking);
+                  if (callbacks.onThinking) callbacks.onThinking(thinking);
                 } else {
                   // 最终回答
                   finalResponse += content;
-                  callbacks.onResponse?.(content, finalResponse);
+                  if (callbacks.onResponse) {
+                    callbacks.onResponse(content, finalResponse);
+                  }
                 }
               }
             } catch (parseError) {
