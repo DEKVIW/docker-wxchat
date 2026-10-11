@@ -1,9 +1,9 @@
 // 微信文件传输助手 Service Worker
 // 提供离线缓存和后台同步功能
 
-const CACHE_NAME = "wxchat-v1.0.19";
-const STATIC_CACHE_NAME = "wxchat-static-v1.0.19";
-const DYNAMIC_CACHE_NAME = "wxchat-dynamic-v1.0.19";
+const CACHE_NAME = "wxchat-v1.0.27";
+const STATIC_CACHE_NAME = "wxchat-static-v1.0.27";
+const DYNAMIC_CACHE_NAME = "wxchat-dynamic-v1.0.27";
 
 // 需要缓存的静态资源
 const STATIC_ASSETS = [

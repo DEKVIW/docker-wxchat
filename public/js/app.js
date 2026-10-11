@@ -127,7 +127,19 @@ class WeChatApp {
       (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
     const useVirtualKeyboardApi = Boolean(virtualKeyboard && !isIOS);
     let frameId = null;
-    let syncTimerId = null;
+    let lastViewportHeight = 0;
+    let lastViewportOffsetTop = 0;
+    let lastKeyboardHeight = 0;
+
+    const resetMobileDocumentScroll = () => {
+      if (!window.matchMedia("(max-width: 720px)").matches) return;
+
+      if (window.scrollX !== 0 || window.scrollY !== 0) {
+        window.scrollTo(0, 0);
+      }
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    };
 
     const getViewportState = () => {
       const viewport = window.visualViewport;
@@ -166,66 +178,67 @@ class WeChatApp {
       frameId = null;
       const nextState = getViewportState();
 
-      root.style.setProperty(
-        "--wx-viewport-height",
-        `${Math.round(nextState.viewportHeight)}px`
-      );
-      root.style.setProperty(
-        "--vh",
-        `${nextState.viewportHeight * 0.01}px`
-      );
-      root.style.setProperty(
-        "--wx-keyboard-height",
-        `${Math.round(nextState.keyboardHeight)}px`
-      );
-      root.style.setProperty(
-        "--wx-viewport-offset-top",
-        `${Math.round(nextState.viewportOffsetTop)}px`
-      );
-    };
+      const viewportHeight = Math.round(nextState.viewportHeight);
+      const viewportOffsetTop = Math.round(nextState.viewportOffsetTop);
+      const keyboardHeight = Math.round(nextState.keyboardHeight);
 
-    const scheduleUpdate = (delay = 120) => {
-      if (syncTimerId !== null) {
-        window.clearTimeout(syncTimerId);
+      if (viewportHeight !== lastViewportHeight) {
+        root.style.setProperty("--wx-viewport-height", `${viewportHeight}px`);
+        root.style.setProperty("--vh", `${viewportHeight * 0.01}px`);
+        lastViewportHeight = viewportHeight;
       }
-      syncTimerId = window.setTimeout(() => {
-        syncTimerId = null;
-        if (frameId === null) {
-          frameId = window.requestAnimationFrame(updateKeyboardState);
-        }
-      }, delay);
+
+      if (keyboardHeight !== lastKeyboardHeight) {
+        root.style.setProperty("--wx-keyboard-height", `${keyboardHeight}px`);
+        lastKeyboardHeight = keyboardHeight;
+      }
+
+      if (viewportOffsetTop !== lastViewportOffsetTop) {
+        root.style.setProperty(
+          "--wx-viewport-offset-top",
+          `${viewportOffsetTop}px`
+        );
+        lastViewportOffsetTop = viewportOffsetTop;
+      }
     };
 
-    window.addEventListener("resize", () => scheduleUpdate(120), {
+    const scheduleUpdate = () => {
+      if (frameId === null) {
+        frameId = window.requestAnimationFrame(updateKeyboardState);
+      }
+    };
+
+    window.addEventListener("resize", scheduleUpdate, {
       passive: true,
     });
     window.addEventListener("orientationchange", () => {
-      setTimeout(() => {
-        scheduleUpdate(80);
-      }, 300);
+      scheduleUpdate();
+      setTimeout(scheduleUpdate, 300);
     });
 
     if (window.visualViewport) {
-      window.visualViewport.addEventListener("resize", () => scheduleUpdate(120), {
+      window.visualViewport.addEventListener("resize", scheduleUpdate, {
         passive: true,
       });
-      window.visualViewport.addEventListener("scroll", () => scheduleUpdate(120), {
+      window.visualViewport.addEventListener("scroll", scheduleUpdate, {
         passive: true,
       });
     }
 
     if (virtualKeyboard) {
-      virtualKeyboard.addEventListener("geometrychange", () =>
-        scheduleUpdate(120)
-      );
+      virtualKeyboard.addEventListener("geometrychange", scheduleUpdate);
     }
 
     if (messageText) {
       messageText.addEventListener("focus", () => {
-        scheduleUpdate(160);
+        resetMobileDocumentScroll();
+        window.requestAnimationFrame(resetMobileDocumentScroll);
+        window.setTimeout(resetMobileDocumentScroll, 120);
+        window.setTimeout(resetMobileDocumentScroll, 360);
+        scheduleUpdate();
       });
       messageText.addEventListener("blur", () => {
-        scheduleUpdate(180);
+        scheduleUpdate();
       });
 
       const messageList = document.getElementById("messageList");
@@ -238,25 +251,6 @@ class WeChatApp {
         },
         { passive: true }
       );
-    }
-
-    const inputContainer = document.querySelector(".input-container");
-    if (inputContainer && "ResizeObserver" in window) {
-      let composerHeight = "";
-      const observer = new ResizeObserver((entries) => {
-        const height = entries[0]?.target.getBoundingClientRect().height;
-        if (height) {
-          const nextHeight = `${Math.ceil(height)}px`;
-          if (nextHeight !== composerHeight) {
-            composerHeight = nextHeight;
-            document.documentElement.style.setProperty(
-              "--wx-composer-height",
-              nextHeight
-            );
-          }
-        }
-      });
-      observer.observe(inputContainer);
     }
 
     updateKeyboardState();

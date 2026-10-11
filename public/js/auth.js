@@ -247,7 +247,7 @@ const Auth = {
       loginButton.disabled = true;
     }
     if (passwordInput) {
-      passwordInput.disabled = true;
+      passwordInput.disabled = false;
     }
   },
 

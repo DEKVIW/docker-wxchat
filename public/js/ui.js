@@ -170,8 +170,19 @@ const UI = {
   // 自动调整文本框高度
   autoResizeTextarea() {
     const textarea = this.elements.messageText;
+    if (!textarea) return;
+
+    const styles = window.getComputedStyle(textarea);
+    const minHeight = Number.parseFloat(styles.minHeight) || 0;
+    const maxHeight = Number.parseFloat(styles.maxHeight) || 120;
+
     textarea.style.height = "auto";
-    textarea.style.height = Math.min(textarea.scrollHeight, 120) + "px";
+    const contentHeight = textarea.scrollHeight;
+    textarea.style.height = `${Math.min(
+      Math.max(contentHeight, minHeight),
+      maxHeight
+    )}px`;
+    textarea.style.overflowY = contentHeight > maxHeight ? "auto" : "hidden";
   },
 
   // 显示加载状态
@@ -1242,7 +1253,7 @@ const UI = {
   showSlideToConfirmModal({ title = "", message = "", onConfirm }) {
     // 创建遮罩
     const overlay = document.createElement("div");
-    overlay.className = "slide-confirm-overlay";
+    overlay.className = "slide-confirm-overlay show";
     overlay.innerHTML = `
       <div class="slide-confirm-modal">
         <div class="slide-confirm-title">${title}</div>

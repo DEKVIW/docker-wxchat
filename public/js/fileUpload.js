@@ -700,28 +700,6 @@ const uploadStyles = `
         border-radius: 4px;
     }
 
-    /* 文件按钮增强 */
-    .file-button {
-        position: relative;
-        overflow: hidden;
-    }
-
-    .file-button::after {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(7, 193, 96, 0.1);
-        opacity: 0;
-        transition: opacity 0.2s ease;
-    }
-
-    .file-button:hover::after {
-        opacity: 1;
-    }
-
     /* 键盘快捷键提示 */
     .keyboard-hint {
         position: fixed;
@@ -755,16 +733,6 @@ const uploadStyles = `
     body.dragging .message-list {
         filter: brightness(0.95);
         transform: scale(0.98);
-    }
-
-    /* 文件按钮悬停效果 */
-    .file-button {
-        transition: all 0.2s ease;
-    }
-
-    .file-button:hover {
-        transform: scale(1.05);
-        background-color: rgba(7, 193, 96, 0.1);
     }
 
     /* 上传状态动画 */

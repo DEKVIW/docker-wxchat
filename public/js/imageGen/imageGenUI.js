@@ -52,7 +52,7 @@ const ImageGenUI = {
     // 创建图片生成模态框
     createImageGenModal() {
         const modal = document.createElement('div');
-        modal.className = 'image-gen-modal-overlay';
+        modal.className = 'image-gen-modal-overlay show';
         modal.innerHTML = `
             <div class="image-gen-modal">
                 <div class="image-gen-header">

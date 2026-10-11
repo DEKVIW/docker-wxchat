@@ -1,6 +1,13 @@
+/* 微信式聊天编辑器：消息区独立滚动，编辑器始终是聊天容器的底部区域。 */
+
 .app-main,
 .chat-container {
+  min-width: 0;
   min-height: 0;
+}
+
+.message-list {
+  scroll-behavior: auto;
 }
 
 .input-container {
@@ -10,19 +17,22 @@
   width: auto;
   min-height: 0;
   flex: 0 0 auto;
-  align-items: flex-end;
+  flex-direction: column;
+  align-items: stretch;
   margin: 0;
-  padding: 9px 22px calc(10px + var(--wx-safe-bottom));
+  padding: 8px 22px calc(9px + var(--wx-safe-bottom));
   border-top: 1px solid #dcdcdc;
   background: #f7f7f7;
+  overflow: visible;
+  overflow-anchor: none;
+  isolation: isolate;
   -webkit-transform: none;
   transform: none;
   transition: none;
-  overflow-anchor: none;
 }
 
-.message-input,
-.input-container form {
+.message-input {
+  display: block;
   width: 100%;
   max-width: 900px;
   margin: 0 auto;
@@ -30,6 +40,7 @@
 
 .input-wrapper {
   display: flex;
+  width: 100%;
   min-width: 0;
   align-items: flex-end;
   gap: 4px;
@@ -48,6 +59,7 @@
   background: transparent;
   color: #666;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .file-button:hover,
@@ -99,9 +111,6 @@
 
 .function-button,
 .function-button.show {
-  position: static;
-  top: auto;
-  right: auto;
   display: grid;
   width: 32px;
   height: 32px;
@@ -109,7 +118,7 @@
   place-items: center;
   margin: 0;
   padding: 0;
-  border: 1px solid #7c7c7c;
+  border: 1.5px solid #626262;
   border-radius: 50%;
   outline: 0;
   background: transparent;
@@ -119,23 +128,33 @@
   transform: none;
   box-shadow: none;
   transition: none;
+  touch-action: manipulation;
 }
 
 .function-button.hide {
   display: none;
 }
 
+/* 加号是工具按钮，不在 hover 时旋转、变色或放大。 */
 .function-button:hover,
 .function-button:active,
 .function-button:focus,
 .function-button:focus-visible {
-  border-color: #7c7c7c;
+  border-color: #626262;
   outline: 0;
   background: transparent !important;
   color: #595959 !important;
   transform: none;
   box-shadow: none !important;
   filter: none;
+}
+
+.function-button:hover:not(:disabled),
+.function-button:active:not(:disabled) {
+  background: transparent !important;
+  color: #595959 !important;
+  transform: none !important;
+  box-shadow: none !important;
 }
 
 .function-button .function-icon {
@@ -145,11 +164,20 @@
   color: currentColor;
   fill: none;
   transform: none;
+  transition: none;
 }
 
 .function-button .function-icon path {
   stroke: currentColor;
   stroke-width: 2.2;
+}
+
+.function-button:hover .function-icon,
+.function-button:active .function-icon,
+.function-button:focus .function-icon,
+.function-button:focus-visible .function-icon {
+  transform: none !important;
+  transition: none !important;
 }
 
 .send-button,
@@ -165,6 +193,10 @@
   background: var(--wx-green);
   color: #fff;
   cursor: pointer;
+  opacity: 1;
+  transform: none;
+  box-shadow: none;
+  transition: none;
 }
 
 .send-button.show {
@@ -219,6 +251,7 @@
   background: var(--wx-green);
 }
 
+/* 桌面端辅助面板从编辑器上方展开，背景沿用微信面板灰。 */
 .function-menu,
 .emoji-picker-overlay {
   position: absolute;
@@ -228,7 +261,15 @@
   z-index: 12000;
   display: none;
   height: 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  opacity: 1;
   pointer-events: none;
+  transform: none;
 }
 
 .function-menu.show,
@@ -247,24 +288,18 @@
 .function-menu-content,
 .emoji-picker-modal {
   position: absolute;
-  top: auto;
   right: 22px;
-  bottom: 10px;
+  bottom: 0;
   left: auto;
   z-index: 1;
   width: min(430px, calc(100vw - 44px));
+  max-width: none;
   max-height: min(430px, calc(var(--wx-viewport-height) - 150px));
   overflow: hidden auto;
   border: 1px solid #d9d9d9;
   border-radius: 8px;
   background: #f7f7f7;
   box-shadow: 0 8px 26px rgba(0, 0, 0, 0.16);
-  transform: translateY(8px);
-}
-
-.function-menu.show .function-menu-content,
-.emoji-picker-overlay .emoji-picker-modal {
-  transform: translateY(0);
 }
 
 .function-menu-header,
@@ -314,7 +349,6 @@
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px 6px;
-  max-height: none;
   padding: 14px;
 }
 
@@ -380,7 +414,7 @@
 
 .emoji-grid {
   display: grid;
-  grid-template-columns: repeat(9, minmax(0, 1fr));
+  grid-template-columns: repeat(10, minmax(0, 1fr));
   gap: 3px;
 }
 
@@ -407,16 +441,178 @@ body.aux-panel-open .input-container {
   z-index: 12001;
 }
 
-@media (max-width: 720px) {
+/* 桌面端：工具栏、文本区、发送按钮符合 PC 微信的垂直分区。 */
+@media (min-width: 721px) {
   .input-container {
-    padding: 7px 6px calc(7px + var(--wx-safe-bottom)) max(6px, env(safe-area-inset-left));
+    flex-basis: 184px;
+    padding: 0 24px 14px;
   }
 
-  body.keyboard-open .input-container {
-    padding-bottom: 7px;
+  .message-input {
+    height: 100%;
+    max-width: none;
   }
 
   .input-wrapper {
+    position: relative;
+    display: block;
+    height: 100%;
+  }
+
+  .file-button,
+  .emoji-button,
+  .function-button,
+  .send-button {
+    position: absolute !important;
+    z-index: 2;
+  }
+
+  .file-button,
+  .emoji-button,
+  .function-button {
+    top: 9px;
+    width: 34px;
+    height: 34px;
+  }
+
+  .file-button {
+    left: 0;
+  }
+
+  .emoji-button {
+    left: 40px;
+  }
+
+  .input-field-container {
+    position: static;
+    display: block;
+    height: 100%;
+    min-height: 0;
+    overflow: visible;
+    padding: 40px 0 38px;
+    border: 0;
+    background: transparent;
+  }
+
+  .input-field-container:focus-within {
+    border-color: transparent;
+  }
+
+  .input-field-container textarea {
+    width: 100%;
+    height: 100% !important;
+    min-height: 0;
+    max-height: none;
+    padding: 2px 0;
+    background: transparent;
+    font-size: 15px;
+    line-height: 22px;
+    overflow-y: auto;
+  }
+
+  .function-button,
+  .function-button.show {
+    left: 80px;
+    border: 0;
+    border-radius: 4px;
+  }
+
+  .send-button,
+  .send-button.show {
+    right: 0;
+    top: auto;
+    bottom: 0;
+    display: none;
+    width: 80px;
+    height: 32px;
+    border-radius: 4px;
+  }
+
+  .send-button:not(.show) {
+    display: grid;
+    background: #e5e5e5;
+    color: #999;
+    cursor: default;
+    pointer-events: none;
+  }
+
+  .send-button.show {
+    display: grid;
+  }
+
+  .send-button .send-icon {
+    display: none;
+  }
+
+  .send-button::after {
+    content: "发送";
+    font-size: 13px;
+  }
+
+  .function-menu-content,
+  .emoji-picker-modal {
+    right: auto;
+    left: 24px;
+    width: min(520px, calc(100vw - 48px), calc(100% - 48px));
+    max-height: min(420px, calc(var(--wx-viewport-height) - 220px));
+  }
+
+  .emoji-picker-modal {
+    width: min(560px, calc(100vw - 48px), calc(100% - 48px));
+  }
+
+  .emoji-picker-content {
+    max-height: calc(min(420px, var(--wx-viewport-height) - 220px) - 46px);
+  }
+}
+
+/* 移动端：编辑器随视觉视口落在键盘上方，消息列表仍是唯一滚动区。 */
+@media (max-width: 720px) {
+  html,
+  body {
+    position: fixed;
+    top: var(--wx-viewport-offset-top, 0px);
+    right: 0;
+    bottom: auto;
+    left: 0;
+    width: 100%;
+    height: var(--wx-viewport-height, 100dvh);
+    min-height: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  .app {
+    position: fixed;
+    top: var(--wx-viewport-offset-top, 0px);
+    right: 0;
+    bottom: auto;
+    left: 0;
+    width: 100%;
+    height: var(--wx-viewport-height, 100dvh);
+    max-height: var(--wx-viewport-height, 100dvh);
+    overflow: hidden;
+  }
+
+  .app-main,
+  .chat-container {
+    height: 100%;
+    max-height: none;
+  }
+
+  .input-container {
+    padding: 0 max(6px, env(safe-area-inset-right))
+      calc(6px + var(--wx-safe-bottom)) max(6px, env(safe-area-inset-left));
+    background: #f7f7f7;
+  }
+
+  .message-input {
+    width: 100%;
+    padding: 6px 0;
+  }
+
+  .input-wrapper {
+    align-items: center;
     gap: 1px;
   }
 
@@ -428,42 +624,94 @@ body.aux-panel-open .input-container {
   }
 
   .input-field-container {
+    align-items: center;
     min-height: 40px;
-    gap: 2px;
-    padding-left: 8px;
+    gap: 4px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .input-field-container:focus-within {
+    border-color: transparent;
   }
 
   .input-field-container textarea {
-    min-height: 32px;
-    padding-top: 6px;
-    padding-bottom: 6px;
+    min-height: 40px;
+    max-height: 104px;
+    padding: 8px 12px;
+    border: 1px solid #d9d9d9;
+    border-radius: 20px;
+    background: #fff;
     font-size: 16px;
+    line-height: 22px;
+    overflow-y: auto !important;
   }
 
   .function-button,
   .function-button.show,
   .send-button,
   .send-button.show {
-    width: 31px;
-    height: 31px;
-    flex-basis: 31px;
+    position: static;
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+    align-self: center;
+    transform: none !important;
   }
 
-  .function-button .function-icon {
-    width: 19px;
-    height: 19px;
+  .file-button,
+  .emoji-button,
+  .function-button,
+  .send-button {
+    align-self: center !important;
+  }
+
+  .function-button,
+  .function-button.show {
+    border: 1.5px solid #626262;
+    border-radius: 50%;
+  }
+
+  .send-button,
+  .send-button.show {
+    border-radius: 4px;
+  }
+
+  .function-menu,
+  .emoji-picker-overlay {
+    position: relative;
+    inset: auto;
+    order: 2;
+    display: block;
+    width: 100%;
+    height: auto;
+    flex: 0 0 auto;
+    pointer-events: auto;
+  }
+
+  .function-menu:not(.show) {
+    display: none;
+  }
+
+  .function-menu-overlay {
+    position: fixed;
+    z-index: 0;
+    inset: 0;
+    background: transparent;
   }
 
   .function-menu-content,
   .emoji-picker-modal {
-    right: 0;
-    bottom: 7px;
-    left: 0;
+    position: relative;
+    inset: auto;
+    z-index: 1;
     width: 100%;
-    max-height: min(390px, calc(var(--wx-viewport-height) - 120px));
+    max-height: min(390px, 45dvh);
     border-right: 0;
     border-left: 0;
-    border-radius: 10px 10px 0 0;
+    border-radius: 0;
+    box-shadow: none;
   }
 
   .function-menu-grid {
@@ -473,18 +721,12 @@ body.aux-panel-open .input-container {
   }
 
   .function-menu-item {
-    min-height: 76px;
-  }
-
-  .function-menu-item-icon {
-    width: 44px;
-    height: 44px;
+    min-height: 72px;
   }
 
   .emoji-picker-content {
-    max-height: min(390px, calc(var(--wx-viewport-height) - 120px));
-    padding-right: 9px;
-    padding-left: 9px;
+    max-height: min(390px, 45dvh);
+    padding: 12px 9px calc(14px + var(--wx-safe-bottom));
   }
 
   .emoji-grid {
@@ -507,5 +749,12 @@ body.aux-panel-open .input-container {
   .function-menu-item-icon {
     width: 40px;
     height: 40px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .function-button,
+  .function-button .function-icon {
+    transition: none !important;
   }
 }
