@@ -161,7 +161,23 @@ const FunctionMenu = {
       }
     });
 
-    document.addEventListener("pointerdown", (e) => {
+    const menuOutsideEvent = window.PointerEvent ? "pointerdown" : "touchstart";
+    document.addEventListener(
+      menuOutsideEvent,
+      (e) => {
+        const menu = document.getElementById("functionMenu");
+        if (
+          menu &&
+          !e.target.closest(".function-menu-content") &&
+          !e.target.closest("#functionButton")
+        ) {
+          this.hide();
+        }
+      },
+      { passive: true }
+    );
+
+    document.addEventListener(menuOutsideEvent, (e) => {
       const picker = document.querySelector(".emoji-picker-overlay");
       if (
         picker &&

@@ -107,6 +107,19 @@ const UI = {
       this.checkInputAndToggleSendButton();
     });
 
+    const messageInputEvent = window.PointerEvent ? "pointerdown" : "touchstart";
+    this.elements.messageText.addEventListener(
+      messageInputEvent,
+      () => {
+        const picker = document.querySelector(".emoji-picker-overlay");
+        if (window.FunctionMenu && picker) {
+          FunctionMenu.closeEmojiPicker(picker);
+          this.elements.messageText.focus();
+        }
+      },
+      { passive: true }
+    );
+
     this.elements.messageText.addEventListener("focus", () => {
       if (window.FunctionMenu) {
         FunctionMenu.closeEmojiPicker();

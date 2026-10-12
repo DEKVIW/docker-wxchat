@@ -569,6 +569,27 @@ body.aux-panel-open .input-container {
     font-size: 13px;
   }
 
+  .send-button,
+  .send-button.show,
+  .send-button:hover:not(:disabled),
+  .send-button:active:not(:disabled),
+  .send-button:focus,
+  .send-button:focus-visible,
+  .send-button.loading {
+    transform: none !important;
+    transition: none !important;
+    box-shadow: none !important;
+  }
+
+  .send-button.loading .send-icon {
+    animation: none !important;
+  }
+
+  .send-button:hover:not(:disabled),
+  .send-button:active:not(:disabled) {
+    background: var(--wx-green) !important;
+  }
+
   .function-menu-content,
   .emoji-picker-modal {
     right: auto;
