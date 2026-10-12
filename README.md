@@ -4,6 +4,8 @@
 
 基于 [xiyewuqiu/wxchat](https://github.com/xiyewuqiu/wxchat) 开发的微信文件传输助手，使用 Docker 容器化部署，支持 AI 聊天和图片生成功能。
 
+本次版本完成微信风格 UI 全面优化：桌面端与移动端布局适配、移动端输入框与键盘区联动、会话分组、长按消息操作、媒体消息预览，以及独立 Docker 部署支持。Docker 版本使用本地 Node.js、SQLite 和文件存储运行，不依赖 Cloudflare。
+
 ##  主要功能
 
 - **跨设备文件传输** - 支持手机、电脑、平板等设备间文件传输
