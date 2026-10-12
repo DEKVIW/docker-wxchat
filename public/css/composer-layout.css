@@ -764,6 +764,7 @@ body.aux-panel-open .input-container {
     z-index: 0;
     inset: 0;
     background: transparent;
+    pointer-events: none;
   }
 
   .function-menu-content,

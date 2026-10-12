@@ -112,8 +112,10 @@ const UI = {
       messageInputEvent,
       () => {
         const picker = document.querySelector(".emoji-picker-overlay");
-        if (window.FunctionMenu && picker) {
-          FunctionMenu.closeEmojiPicker(picker);
+        const menu = document.getElementById("functionMenu");
+        if (window.FunctionMenu && (picker || menu)) {
+          if (picker) FunctionMenu.closeEmojiPicker(picker);
+          if (menu) FunctionMenu.hide();
           this.elements.messageText.focus();
         }
       },
