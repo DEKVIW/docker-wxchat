@@ -1,11 +1,10 @@
-version: "3.8"
 services:
   wxchat:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     ports:
-      - "3000:3000"
+      - "${WXCHAT_HOST_PORT:-8789}:3000"
     volumes:
       - ../data:/app/data # 数据库文件持久化
       - ../uploads:/app/uploads # 文件上传目录

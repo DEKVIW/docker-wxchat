@@ -20,7 +20,9 @@ docker-compose up -d
 
 ### 3. 访问应用
 
-打开浏览器访问：http://localhost:3000
+默认打开：http://localhost:8789
+
+如果宿主机的 `8789` 已被占用，可在 `.env` 中修改 `WXCHAT_HOST_PORT`，容器内部仍使用 `3000`。
 
 ### 4. 登录
 
@@ -122,11 +124,10 @@ docker-compose ps
 
 ### 1. 端口冲突
 
-如果 3000 端口被占用，修改 `docker-compose.yml` 中的端口映射：
+如果宿主机端口被占用，在 `.env` 中修改宿主机端口：
 
-```yaml
-ports:
-  - "3001:3000" # 改为3001端口
+```dotenv
+WXCHAT_HOST_PORT=8790
 ```
 
 ### 2. 权限问题

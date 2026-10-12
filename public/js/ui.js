@@ -945,7 +945,7 @@ const UI = {
   },
 
   // 添加新消息到列表（增量方式）
-  addMessage(message) {
+  addMessage(message, forceScroll = false) {
     // 检查用户是否在底部
     const wasAtBottom = this.isAtBottom();
 
@@ -957,6 +957,9 @@ const UI = {
 
     // 如果消息已存在，不重复添加
     if (this.messageCache.has(message.id)) {
+      if (forceScroll) {
+        this.scrollToBottom(true);
+      }
       return;
     }
 
@@ -982,8 +985,8 @@ const UI = {
     });
 
     // 只有在用户原本在底部时才自动滚动
-    if (wasAtBottom) {
-      this.scrollToBottom();
+    if (forceScroll || wasAtBottom) {
+      this.scrollToBottom(forceScroll);
     }
   },
 
@@ -1117,30 +1120,31 @@ const UI = {
   },
 
   // 滚动到底部
-  scrollToBottom() {
-    // 使用requestAnimationFrame确保DOM更新完成后再滚动
+  scrollToBottom(force = true) {
+    const container = this.elements.messageList;
+    if (!container) return;
+
+    const setScrollPosition = () => {
+      if (!force && !this.isAtBottom()) return;
+      container.scrollTop = Math.max(
+        0,
+        container.scrollHeight - container.clientHeight
+      );
+    };
+
+    setScrollPosition();
     requestAnimationFrame(() => {
-      const container = this.elements.messageList;
-
-      // iOS Safari 特殊处理
-      const isIOS =
-        /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-
-      if (isIOS) {
-        // iOS上使用smooth滚动可能有问题，使用多重方法确保滚动
-        container.scrollTo({
-          top: container.scrollHeight,
-          behavior: "auto", // iOS上auto比smooth更可靠
-        });
-
-        // 备用方法
-        setTimeout(() => {
-          container.scrollTop = container.scrollHeight;
-        }, 50);
-      } else {
-        container.scrollTop = container.scrollHeight;
-      }
+      setScrollPosition();
+      requestAnimationFrame(setScrollPosition);
     });
+
+    if (
+      force &&
+      /iPad|iPhone|iPod/.test(navigator.userAgent) &&
+      !window.MSStream
+    ) {
+      window.setTimeout(setScrollPosition, 80);
+    }
   },
 
   // 设置发送按钮状态 - 微信移动端风格

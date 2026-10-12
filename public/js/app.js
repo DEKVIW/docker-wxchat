@@ -129,6 +129,8 @@ class WeChatApp {
     let composerFrameId = null;
     let preserveMessageBottom = false;
     let adjustingMessageScroll = false;
+    let appTopCorrection = 0;
+    const app = document.querySelector(".app");
 
     const updateComposerHeight = () => {
       composerFrameId = null;
@@ -182,18 +184,67 @@ class WeChatApp {
       );
     };
 
+    const getLayoutViewportHeight = () =>
+      window.innerHeight || document.documentElement.clientHeight || 0;
+
+    const getViewportOffsetTop = () => {
+      const viewport = window.visualViewport;
+      return viewport && Number.isFinite(viewport.offsetTop)
+        ? viewport.offsetTop
+        : 0;
+    };
+
     const updateViewportState = () => {
       frameId = null;
       const viewportHeight = Number(getViewportHeight().toFixed(3));
+      const layoutViewportHeight = Number(
+        getLayoutViewportHeight().toFixed(3)
+      );
+      const viewportOffsetTop = Number(getViewportOffsetTop().toFixed(3));
+      const isMessageEditing =
+        messageText && document.activeElement === messageText;
+      const activeViewportOffsetTop = isMessageEditing
+        ? viewportOffsetTop
+        : 0;
+      const keyboardInset = Math.max(
+        0,
+        isMessageEditing
+          ? Number(
+              (
+                layoutViewportHeight -
+                viewportHeight -
+                activeViewportOffsetTop
+              ).toFixed(3)
+            )
+          : 0
+      );
 
       if (viewportHeight !== lastViewportHeight) {
         root.style.setProperty("--wx-viewport-height", `${viewportHeight}px`);
         root.style.setProperty("--vh", `${viewportHeight * 0.01}px`);
         lastViewportHeight = viewportHeight;
       }
+      root.style.setProperty(
+        "--wx-layout-height",
+        `${layoutViewportHeight}px`
+      );
+      root.style.setProperty("--wx-keyboard-inset", `${keyboardInset}px`);
+      root.style.setProperty(
+        "--wx-viewport-offset-top",
+        `${activeViewportOffsetTop}px`
+      );
 
-      const isMessageEditing =
-        messageText && document.activeElement === messageText;
+      if (!isMessageEditing || !app) {
+        appTopCorrection = 0;
+      } else {
+        const appTop = app.getBoundingClientRect().top - appTopCorrection;
+        appTopCorrection = Math.max(0, Number((-appTop).toFixed(3)));
+      }
+      root.style.setProperty(
+        "--wx-app-top-correction",
+        `${appTopCorrection}px`
+      );
+
       scheduleComposerHeight();
       root.classList.toggle("wx-keyboard-open", Boolean(isMessageEditing));
       pinMessageListToBottom();
@@ -218,6 +269,9 @@ class WeChatApp {
 
     if (window.visualViewport) {
       window.visualViewport.addEventListener("resize", scheduleUpdate, {
+        passive: true,
+      });
+      window.visualViewport.addEventListener("scroll", scheduleUpdate, {
         passive: true,
       });
     }
@@ -250,6 +304,9 @@ class WeChatApp {
         root.classList.add("wx-keyboard-open");
         scheduleComposerHeight();
         scheduleUpdate();
+        if (!window.visualViewport) {
+          window.setTimeout(scheduleUpdate, 300);
+        }
         pinMessageListToBottom();
       });
       messageText.addEventListener("blur", () => {

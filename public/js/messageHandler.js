@@ -443,10 +443,30 @@ const MessageHandler = {
 
       const deviceId = Utils.getDeviceId();
       const conversationId = ConversationManager.currentConversationId();
-      await API.sendMessage(content, deviceId, conversationId);
+      const savedMessage = await API.sendMessage(
+        content,
+        deviceId,
+        conversationId
+      );
 
       // 清空输入框
       UI.clearInput();
+
+      const messageId = savedMessage && (savedMessage.id || savedMessage.messageId);
+      if (messageId !== undefined && messageId !== null) {
+        UI.addMessage(
+          {
+            id: messageId,
+            conversation_id: conversationId,
+            type: "text",
+            content,
+            device_id: deviceId,
+            status: "sent",
+            timestamp: new Date().toISOString(),
+          },
+          true
+        );
+      }
 
       // 立即重新加载消息（发送消息后强制滚动到底部）
       await this.loadMessages(true, false);

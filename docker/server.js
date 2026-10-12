@@ -354,7 +354,7 @@ app.get("/api/messages", authMiddleware, (req, res) => {
     FROM messages m 
     LEFT JOIN files f ON m.file_id = f.id 
     WHERE m.conversation_id = ?
-    ORDER BY m.timestamp ASC 
+    ORDER BY m.timestamp ASC, m.id ASC
     LIMIT ? OFFSET ?
   `;
 
@@ -393,7 +393,7 @@ app.post("/api/messages", authMiddleware, (req, res) => {
     db.run(query, [conversationId, type, content, deviceId || req.user.deviceId], function (err) {
       if (err) return res.status(500).json({ success: false, message: err.message });
       db.run("UPDATE conversations SET updated_at = datetime('now') WHERE id = ?", [conversationId]);
-      res.json({ success: true, messageId: this.lastID });
+      res.json({ success: true, data: { id: this.lastID } });
     });
   });
 });

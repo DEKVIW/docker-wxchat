@@ -146,7 +146,8 @@ const API = {
       });
 
       if (response.success) {
-        return response.data;
+        return response.data ||
+          (response.messageId ? { id: response.messageId } : null);
       } else {
         throw new Error(response.error || CONFIG.ERRORS.MESSAGE_SEND_FAILED);
       }

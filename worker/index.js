@@ -320,7 +320,7 @@ api.get("/messages", async (c) => {
       FROM messages m
       LEFT JOIN files f ON m.file_id = f.id
       WHERE m.conversation_id = ?
-      ORDER BY m.timestamp ASC
+      ORDER BY m.timestamp ASC, m.id ASC
       LIMIT ? OFFSET ?
     `);
 
