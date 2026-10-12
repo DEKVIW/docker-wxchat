@@ -196,28 +196,25 @@ class WeChatApp {
 
     const updateViewportState = () => {
       frameId = null;
-      const viewportHeight = Number(getViewportHeight().toFixed(3));
-      const layoutViewportHeight = Number(
-        getLayoutViewportHeight().toFixed(3)
+      const viewportHeight = Math.max(0, Math.round(getViewportHeight()));
+      const layoutViewportHeight = Math.max(
+        0,
+        Math.round(getLayoutViewportHeight())
       );
-      const viewportOffsetTop = Number(getViewportOffsetTop().toFixed(3));
+      const viewportOffsetTop = Math.max(0, Math.round(getViewportOffsetTop()));
       const isMessageEditing =
         messageText && document.activeElement === messageText;
-      const activeViewportOffsetTop = isMessageEditing
+      const viewportBottomInset = Math.max(
+        0,
+        layoutViewportHeight - viewportHeight - viewportOffsetTop
+      );
+      const keyboardActive = Boolean(
+        isMessageEditing || viewportBottomInset > 1
+      );
+      const activeViewportOffsetTop = keyboardActive
         ? viewportOffsetTop
         : 0;
-      const keyboardInset = Math.max(
-        0,
-        isMessageEditing
-          ? Number(
-              (
-                layoutViewportHeight -
-                viewportHeight -
-                activeViewportOffsetTop
-              ).toFixed(3)
-            )
-          : 0
-      );
+      const keyboardInset = keyboardActive ? viewportBottomInset : 0;
 
       if (viewportHeight !== lastViewportHeight) {
         root.style.setProperty("--wx-viewport-height", `${viewportHeight}px`);
@@ -234,19 +231,28 @@ class WeChatApp {
         `${activeViewportOffsetTop}px`
       );
 
-      if (!isMessageEditing || !app) {
-        appTopCorrection = 0;
+      if (!keyboardActive || !app) {
+        if (appTopCorrection !== 0) {
+          appTopCorrection = 0;
+          root.style.setProperty(
+            "--wx-app-top-correction",
+            `${appTopCorrection}px`
+          );
+        }
       } else {
         const appTop = app.getBoundingClientRect().top - appTopCorrection;
-        appTopCorrection = Math.max(0, Number((-appTop).toFixed(3)));
+        const nextAppTopCorrection = Math.max(0, Math.round(-appTop));
+        if (nextAppTopCorrection !== appTopCorrection) {
+          appTopCorrection = nextAppTopCorrection;
+          root.style.setProperty(
+            "--wx-app-top-correction",
+            `${appTopCorrection}px`
+          );
+        }
       }
-      root.style.setProperty(
-        "--wx-app-top-correction",
-        `${appTopCorrection}px`
-      );
 
       scheduleComposerHeight();
-      root.classList.toggle("wx-keyboard-open", Boolean(isMessageEditing));
+      root.classList.toggle("wx-keyboard-open", keyboardActive);
       pinMessageListToBottom();
     };
 
